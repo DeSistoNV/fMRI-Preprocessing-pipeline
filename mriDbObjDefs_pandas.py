@@ -308,7 +308,7 @@ def append_pandas(results_base_directory,inputs,db):
         path_working_vol = results_base_directory
         # path of working volumes
         path_working_vol = results_base_directory +  '/Imagery_RF_test/final_aligned/_cost_func_normcorr/_subsampling_scheme_4.2.1.1_warp_resolution_5.5.5'
-        # grab all working volumes
+
         working_vols = os.listdir(path_working_vol)
 
         for vol in working_vols:

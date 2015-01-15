@@ -283,9 +283,10 @@ class QtInter(QtGui.QWidget):
                 self.dirButton.setDisabled(True)
 
             for f in self.autoFiles:
-                self.parseTableObjects.append(QtGui.QListWidgetItem(f.split('/')[0]))
-                self.parse_table.addItem(self.parseTableObjects[len(self.parseTableObjects) - 1])
-            self.message.append(str(len(self.autoFiles)) + ' .nii files found')
+                if 'SBRef' not in f:
+                    self.parseTableObjects.append(QtGui.QListWidgetItem(f.split('/')[0]))
+                    self.parse_table.addItem(self.parseTableObjects[len(self.parseTableObjects) - 1])
+            self.message.append(str(len(self.parseTableObjects)) + ' .nii files found')
 
             self.Inputs['main path'].setDisabled(True)
             self.addButton.setEnabled(True)
