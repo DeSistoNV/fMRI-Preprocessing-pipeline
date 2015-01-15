@@ -6,7 +6,10 @@ from datetime import datetime
 from collections import OrderedDict
 
 from PyQt4 import QtGui
+from random import randint
 
+## 1.0 - 11.20.2014 - first working copy
+## 1.0.1 - added fields for working volume and brain mask
 
 class NoFileNameError(Exception):
     pass
@@ -35,8 +38,6 @@ class NoTxtError(Exception):
     pass
 
 """ constructs a list of all .nii files in directory"""
-
-
 def grab_directory(directory):
     if os.path.isdir(directory):
         files = []
@@ -57,10 +58,10 @@ class QtInter(QtGui.QWidget):
         self.usedNames = []  # list for checking if a file has already been added
         self.rows = []  # stack of files to be added to database
         self.autoFiles = []  # Stack of parsed files
-        self.yIncrement = 25  # constant for input and label placement
+        self.yIncrement = 23  # constant for input and label placement
         self.tableObjects = []  # list of files in table
 
-        self.append_order_list = ['date', 'subject', 'experiment', 'working vol', 'brain mask', 'sessionID',
+        self.append_order_list = ['date', 'subject', 'experiment', 'working_vol', 'brain_mask', 'sessionID',
                                   'runType',
                                   'design matrix', 'frame_file', 'run_data_file', 'nvols', 'tesla', 'location',
                                   'run_path', 'TR', 'matrix_x', 'matrix_y', 'n_slices', 'vox_x', 'vox_y', 'vox_z',
@@ -104,29 +105,11 @@ class QtInter(QtGui.QWidget):
         self.addButton.move(280, 600)
         self.addButton.setToolTip('Add current file to stack')
 
-        # self.nextFileButton = QtGui.QPushButton('Next File', self)
-        # self.nextFileButton.clicked.connect(self.select_parse_file)
-        # self.nextFileButton.move(190, 750)
-        # self.nextFileButton.setDisabled(True)
-        # self.nextFileButton.setToolTip('Parse next file in stack')
-
-        self.pandaButton = QtGui.QPushButton('pandas', self)
+        self.pandaButton = QtGui.QPushButton('pandas and CSV', self)
         self.pandaButton.clicked.connect(self.pickle_panda)
         self.pandaButton.move(655, 750)
-        self.pandaButton.resize(50, 25)
-        self.pandaButton.setToolTip('Output to Pickled Pandas DataFrame')
-
-        self.sqlButton = QtGui.QPushButton('SQL', self)
-        self.sqlButton.clicked.connect(self.do_sql)
-        self.sqlButton.move(710, 750)
-        self.sqlButton.resize(40, 25)
-        self.sqlButton.setToolTip('Output to SQLite3 Database')
-
-        self.doCSVButton = QtGui.QPushButton('CSV', self)
-        self.doCSVButton.clicked.connect(self.do_csv)
-        self.doCSVButton.move(755, 750)
-        self.doCSVButton.resize(40, 25)
-        self.doCSVButton.setToolTip('Output to CSV spreadsheet')
+        self.pandaButton.resize(100, 25)
+        self.pandaButton.setToolTip('Output to Pickled Pandas DataFrame and CSV file')
 
         self.Inputs = dict()
         self.Labels = dict()
@@ -227,7 +210,7 @@ class QtInter(QtGui.QWidget):
         self.setGeometry(300, 100, 800, 780)
         self.setFixedSize(800, 780)
         self.setWindowOpacity(0.95)
-        self.setWindowTitle('Brain Stuff PyQT')
+        self.setWindowTitle('Brain Stuff: PyQT')
         self.show()
 
 
@@ -246,7 +229,7 @@ class QtInter(QtGui.QWidget):
         try:
             filep = str(self.table.currentItem().text()) # this is the selected top dir
             for row in self.rows:
-                if filep[10:] in row['run_data_file']:
+                if filep[10:] in row['run_data_file']: # check first 10 chars for match
                     for word in self.append_order_list:
                         if word in self.Inputs.keys():
                             self.Inputs[word].setText(row[word])
@@ -294,9 +277,11 @@ class QtInter(QtGui.QWidget):
             path += '/'
 
         if os.path.isdir(path) and path != '/':
-            self.dirButton.setDisabled(True)
             self.autoFiles = grab_directory(path)
             self.Inputs['main path'].setText(path)
+            if len(self.autoFiles) != 0:
+                self.dirButton.setDisabled(True)
+
             for f in self.autoFiles:
                 self.parseTableObjects.append(QtGui.QListWidgetItem(f.split('/')[0]))
                 self.parse_table.addItem(self.parseTableObjects[len(self.parseTableObjects) - 1])
@@ -344,7 +329,6 @@ class QtInter(QtGui.QWidget):
 
             # matches the keys and values in a dict
             parse = dict(zip(parameters, values))
-
             self.Inputs['date'].setText(parse['Study date'][7:] + '/' + parse['Study date'][5:7] + '/' +
                                         parse['Study date'][1:5])
             self.Inputs['subject'].setText(parse['Subject'].split('^')[1])
@@ -401,9 +385,9 @@ class QtInter(QtGui.QWidget):
         import pandas as pd
 
         try:
-            out = str(self.outputInput.text())
-            test = out[:out.rfind('/')]
-            out += '.p'
+            out = str(self.outputInput.text())  # input field
+            test = out[:out.rfind('/')]  # slice the bottom directories
+            out += '.p'  # add pickle extension
             if not os.path.isdir(test):
                 raise DirectoryDoesntExistError()
             if os.path.isfile(out):
@@ -413,10 +397,15 @@ class QtInter(QtGui.QWidget):
             keys = [key for key in self.rows[0]]
             data = [tuple(row[key] for key in row) for row in self.rows]
             s = pd.DataFrame(data=data, columns=keys)
+            s.index.name = 'runID'
             pd.to_pickle(s, str(self.outputInput.text()) + '.p')
             self.message.append(
                 '<html><font color = "green"><b>---------- PANDA PICKLED TO ' + str(
                     self.outputInput.text()) + '.p' + '---------</b><br></font></html>')
+            s.to_csv(str(self.outputInput.text()) + '.csv',columns=s[1:])
+            self.message.append(
+                '<html><font color = "green"><b>--------CSV saved to ' + str(
+                    self.outputInput.text()) + '.csv' + ' ---------</b></font><br></html>')
         except IOError:
             self.message.append('<html><font color = "red">Error: permission to directory denied<br></font></html>')
         except NoFilesAddedError:
@@ -432,121 +421,85 @@ class QtInter(QtGui.QWidget):
 
     """ outputs to SQLite3 DB """
 
-    def do_sql(self):
-        out = str(self.outputInput.text())
-        test = out[:out.rfind('/')]
-        out += '.db'
-        try:
-            if not os.path.isdir(test):
-                raise DirectoryDoesntExistError()
-
-            if os.path.isfile(out):
-                raise FileAlreadyExistsError()
-
-            if len(self.rows) < 1:
-                raise NoFilesAddedError()
-
-            connection = sqlite3.connect(str(self.outputInput.text()) + '.db')
-            cursor = connection.cursor()
-
-            # create table
-            # noinspection PyPep8
-            cursor.execute('CREATE TABLE mri \
-                         (runID INTEGER PRIMARY KEY AUTOINCREMENT, \
-                          date  DATE, 				   \
-                          subject TEXT,                            \
-                          expID TEXT,                              \
-                          working_vol TEXT,                        \
-                          brain_mask TEXT,                         \
-                          sessionID INTEGER,                       \
-                          runType TEXT,                            \
-                          designMatrixName TEXT,                   \
-                          frameFileName TEXT,                      \
-                          runName TEXT,                            \
-                          nVols INTEGER,                           \
-                          tesla TEXT,                              \
-                          magnetSite TEXT,                         \
-                          runPath TEXT,                            \
-                          tr REAL,                                 \
-                          matrixSizeX INTEGER,                     \
-                          matrixSizeY INTEGER,                     \
-                          matrixSizeZ INTEGER,                     \
-                          voxResX REAL,                            \
-                          voxResY REAL,                            \
-                          voxResZ REAL,                            \
-                          runCodePath TEXT,                        \
-                          runCodeName TEXT,                        \
-                          designMatrixPath TEXT,                   \
-                          frameFilePath TEXT,                      \
-                          picPath TEXT,                            \
-                          seimensRef INTEGER,                      \
-                          padVol INTEGER                           \
-                          )'
-            )
-
-            for row in self.rows:
-                values = 'INSERT INTO mRI VALUES' + '(null,' + ','.join(
-                    str(i) if type(i) == int else "\'" + i + "\'" for i in row.values()) + ')'
-                cursor.execute(values)
-
-            connection.commit()
-
-            self.message.append(
-                '<html><b><font color = "green">--------SQL DB saved to ' + str(
-                    self.outputInput.text()) + '.db' + ' ---------</font><</b>br></html>')
-        except sqlite3.OperationalError:
-            self.message.append(
-                '<html><font color = "red">SQLite3 Operation Error: Possible that you do not have permission'
-                ' to this directory</font><br></html>')
-        except NoFilesAddedError:
-            self.message.append('<html><font color = "red">Error: No files added yet</font><brb></html>')
-        except FileAlreadyExistsError:
-            self.message.append('<html><font color = "red">Error: file ' + out + ' Already exists</font><br></html>')
-        except DirectoryDoesntExistError:
-            self.message.append(
-                '<html><font color = "red">Error: File Path -  ' + test + 'does not exist.<br></font></html>')
-        finally:
-            self.message.moveCursor(QtGui.QTextCursor.End)
+    # def do_sql(self):
+    #     out = str(self.outputInput.text())
+    #     test = out[:out.rfind('/')]
+    #     out += '.db'
+    #     try:
+    #         if not os.path.isdir(test):
+    #             raise DirectoryDoesntExistError()
+    #
+    #         if os.path.isfile(out):
+    #             raise FileAlreadyExistsError()
+    #
+    #         if len(self.rows) < 1:
+    #             raise NoFilesAddedError()
+    #
+    #         connection = sqlite3.connect(str(self.outputInput.text()) + '.db')
+    #         cursor = connection.cursor()
+    #
+    #         # create table
+    #         # noinspection PyPep8
+    #         cursor.execute('CREATE TABLE mri \
+    #                      (runID INTEGER PRIMARY KEY AUTOINCREMENT, \
+    #                       date  DATE, 				   \
+    #                       subject TEXT,                            \
+    #                       expID TEXT,                              \
+    #                       working_vol TEXT,                        \
+    #                       brain_mask TEXT,                         \
+    #                       sessionID INTEGER,                       \
+    #                       runType TEXT,                            \
+    #                       designMatrixName TEXT,                   \
+    #                       frameFileName TEXT,                      \
+    #                       runName TEXT,                            \
+    #                       nVols INTEGER,                           \
+    #                       tesla TEXT,                              \
+    #                       magnetSite TEXT,                         \
+    #                       runPath TEXT,                            \
+    #                       tr REAL,                                 \
+    #                       matrixSizeX INTEGER,                     \
+    #                       matrixSizeY INTEGER,                     \
+    #                       matrixSizeZ INTEGER,                     \
+    #                       voxResX REAL,                            \
+    #                       voxResY REAL,                            \
+    #                       voxResZ REAL,                            \
+    #                       runCodePath TEXT,                        \
+    #                       runCodeName TEXT,                        \
+    #                       designMatrixPath TEXT,                   \
+    #                       frameFilePath TEXT,                      \
+    #                       picPath TEXT,                            \
+    #                       seimensRef INTEGER,                      \
+    #                       padVol INTEGER                           \
+    #                       )'
+    #         )
+    #
+    #         for row in self.rows:
+    #             values = 'INSERT INTO mRI VALUES' + '(null,' + ','.join(
+    #                 str(i) if type(i) == int else "\'" + i + "\'" for i in row.values()) + ')'
+    #             cursor.execute(values)
+    #
+    #         connection.commit()
+    #
+    #         self.message.append(
+    #             '<html><b><font color = "green">--------SQL DB saved to ' + str(
+    #                 self.outputInput.text()) + '.db' + ' ---------</font><</b>br></html>')
+    #     except sqlite3.OperationalError:
+    #         self.message.append(
+    #             '<html><font color = "red">SQLite3 Operation Error: Possible that you do not have permission'
+    #             ' to this directory</font><br></html>')
+    #     except NoFilesAddedError:
+    #         self.message.append('<html><font color = "red">Error: No files added yet</font><brb></html>')
+    #     except FileAlreadyExistsError:
+    #         self.message.append('<html><font color = "red">Error: file ' + out + ' Already exists</font><br></html>')
+    #     except DirectoryDoesntExistError:
+    #         self.message.append(
+    #             '<html><font color = "red">Error: File Path -  ' + test + 'does not exist.<br></font></html>')
+    #     finally:
+    #         self.message.moveCursor(QtGui.QTextCursor.End)
 
     """ outputs to a comma separated values file """
 
-    def do_csv(self):
-        out = str(self.outputInput.text())
-        test = out[:out.rfind('/')]
-        out += '.csv'
-        import pandas as pd
-
-        try:
-            out = str(self.outputInput.text())
-            test = out[:out.rfind('/')]
-            out += '.p'
-            if not os.path.isdir(test):
-                raise DirectoryDoesntExistError()
-            if os.path.isfile(out):
-                raise FileAlreadyExistsError()
-            if len(self.rows) < 1:
-                raise NoFilesAddedError()
-            keys = [key for key in self.rows[0]]
-            data = [tuple(row[key] for key in row) for row in self.rows]
-            s = pd.DataFrame(data=data, columns=keys)
-            s.to_csv(str(self.outputInput.text()) + '.csv')
-            self.message.append(
-                '<html><font color = "green"><b>--------CSV saved to ' + str(
-                    self.outputInput.text()) + '.csv' + ' ---------</b></font><br></html>')
-        except IOError:
-            self.message.append('<html><font color = "red">Error: permission to directory denied<br></font></html>')
-        except NoFilesAddedError:
-            self.message.append('<html><font color = "red">Error: No files added yet<br></font></html>')
-        except FileAlreadyExistsError:
-            self.message.append('<html><font color = "red">Error: file ' + out + ' Already exists<br></font></html>')
-        except DirectoryDoesntExistError:
-            self.message.append(
-                '<html><font color = "red">Error: File Path -  ' + test + ' Does not exist.<br></font></html>')
-        finally:
-            self.message.moveCursor(QtGui.QTextCursor.End)
-
     """ add file to stack """
-
     def file_append(self):
         try:
             if str(self.Inputs['siemensRef'].text()) != '1' and str(self.Inputs['siemensRef'].text()) != '0':
@@ -563,12 +516,14 @@ class QtInter(QtGui.QWidget):
             self.tableObjects.append(QtGui.QListWidgetItem(file_p))
 
             row = OrderedDict()
-            for key in self.append_order_list:
-                if key in self.Inputs.keys():
+            # row['runID'] = str(int(file_p[2:5]))
+            for key in self.append_order_list:  # for each param in the order list
+                if key in self.Inputs.keys():  # if key is in Inputs set to value
                     row[key] = str(self.Inputs[key].text())
-                else:
+                else:       # else empty
                     row[key] = ''
             self.rows.append(row)
+
 
             self.table.addItem(self.tableObjects[len(self.tableObjects) - 1])
             self.parse_table.takeItem(self.parse_table.currentRow())
