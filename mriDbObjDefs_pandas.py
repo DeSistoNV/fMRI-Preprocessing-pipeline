@@ -286,21 +286,29 @@ class fsl_preproc_inode(IdentityInterface):
         else:
             sys.exit('invalid database type. need .db or .p')
 
-## Adds working volume and brain mask to db after pipeline is run
+## Added 1.13.15
+## Method to add working volume and brain mask file paths
+## Precondition : pipeline has been run
+## Param results_base_directory : base directory where pipeline stores results
+## Param inputs : main_inputnode.inputs ; this is to get the run list
+## Param db : location of pickled pandas DataFrame file
 def append_pandas(results_base_directory,inputs,db):
     try:
 
-        if not os.path.isdir(results_base_directory):
+        if not os.path.isdir(results_base_directory):  ## check if the results_base_directory exists
             raise IOError()
         import pandas as pd
         open_panda = pd.read_pickle(db)
-        path_brain_mask = results_base_directory +  '/Imagery_RF_test/brain_mask/_bet_vols0'
-        for run in inputs.abs_run_id:
+        path_brain_mask = results_base_directory +  '/Imagery_RF_test/brain_mask/_bet_vols0' # path where brain mask is stored
+        for run in inputs.abs_run_id:   # adding brain mask for all the runs in the run list
             print 'brain mask for runID ' + str(run) + ' added'
             brain_mask_location = path_brain_mask + '/' + os.listdir(path_brain_mask)[0]
             open_panda.ix[run,'brain_mask'] = brain_mask_location
+
         path_working_vol = results_base_directory
+        # path of working volumes
         path_working_vol = results_base_directory +  '/Imagery_RF_test/final_aligned/_cost_func_normcorr/_subsampling_scheme_4.2.1.1_warp_resolution_5.5.5'
+        # grab all working volumes
         working_vols = os.listdir(path_working_vol)
 
         for vol in working_vols:
