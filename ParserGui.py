@@ -1,4 +1,6 @@
-__author__ = 'Nick Desisto'
+# Nick DeSisto
+# 11.16.14
+# graphical user interface for creating a database of Nifti fMri files.
 import sys
 import os
 import sqlite3
@@ -283,7 +285,7 @@ class QtInter(QtGui.QWidget):
                 self.dirButton.setDisabled(True)
 
             for f in self.autoFiles:
-                if 'SBRef' not in f:
+                if 'SBRef' not in f and 'localizer' not in f and 'FieldMap' not in f and 'phaseencode' not in f:
                     self.parseTableObjects.append(QtGui.QListWidgetItem(f.split('/')[0]))
                     self.parse_table.addItem(self.parseTableObjects[len(self.parseTableObjects) - 1])
             self.message.append(str(len(self.parseTableObjects)) + ' .nii files found')
