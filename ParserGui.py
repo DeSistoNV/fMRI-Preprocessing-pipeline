@@ -8,7 +8,8 @@ from datetime import datetime
 from collections import OrderedDict
 
 from PyQt4 import QtGui
-from random import randint
+
+
 
 ## 1.0 - 11.20.2014 - first working copy
 ## 1.0.1 - added fields for working volume and brain mask

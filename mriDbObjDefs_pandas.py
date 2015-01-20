@@ -322,14 +322,6 @@ def append_pandas(inputnode,params_dict,db):
             index = int(vol[-8:-7])
             open_panda.ix[index,'working_vol'] = vol
 
-        #pickle and csv overwrite
-
-        pd.to_pickle(open_panda,db)
-        csv_text = db[:-2] + '.csv'
-        open_panda.to_csv(csv_text)
-        print 'saved to ' + csv_text
-
-
     except IOError:
         print "\nERROR ADDING BRAIN MASK AND WORKING VOLUME: CAN'T APPEND A NON-EXISTING FILE \n\t run pipeline first."
 
@@ -344,13 +336,40 @@ def append_param_csv(fsl,csv):
         if not os.path.isfile(csv):
             raise IOError
         import pandas as pd
-        df = pd.read_csv(csv)
-        print df
+        df = pd.read_csv(csv,index_col = False)
 
         df.loc[len(df)+1]=[fsl['results_base_dir'].split('/')[-1],fsl['t_size'],fsl['bet_frac'],fsl['FLIRT_cost_func'],
                            fsl['interp_FLIRT'],fsl['dof_FLIRT'],str(fsl['rigid2D_FLIRT']),fsl['interp_FNIRT'],
-                           fsl['do_FNIRT'],fsl['FNIRT_subsamp'],fsl['FNIRT_warpres']]
-        df.to_csv(csv)
+                           fsl['FNIRT_subsamp'],fsl['FNIRT_warpres']]
+        df.to_csv(csv,index=False)
+        print df
+
         print 'results csv updated'
     except IOError:
         print csv + 'does not exist.'
+# Added 1.19.15
+# Method that grabs all the corrected movies and copies them into a single folder for easier veiwing
+#
+# !! Needs params
+
+def collect_results():
+    import os
+    from shutil import copyfile
+
+
+    result_dirs = ['/home/nick/datDump/' + dir for dir in list(os.listdir('/home/nick/datDump')) if 'results' in dir]
+    finals = []
+    for dir in result_dirs:
+        while '.nii' not in os.listdir(dir)[0]:
+            dir += '/' + os.listdir(dir)[0]
+        dir += '/' + os.listdir(dir)[0]
+        finals.append(dir)
+    copy_count = 0
+    for file in finals:
+        dest = '/home/nick/datDump/corrected_movies/' + file.split('/')[4][7:] + '.nii.gz'
+        if os.path.isfile(dest):
+            pass
+        else:
+            copyfile(file,dest)
+            copy_count += 1
+    print str(copy_count) + ' files copied.'
