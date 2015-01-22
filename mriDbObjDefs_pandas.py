@@ -6,7 +6,6 @@ import sys
 
 
 
-
 class fsl_preproc_inode(IdentityInterface):
     ##this __init__ definition uses a trick from stack overflow to initialize a super class
     ##creates the input node fields needed to start an fsl_preproc pipeline
@@ -338,20 +337,55 @@ def append_param_csv(fsl,csv):
         import pandas as pd
         df = pd.read_csv(csv,index_col = False)
 
-        df.loc[len(df)+1]=[fsl['results_base_dir'].split('/')[-1],fsl['t_size'],fsl['bet_frac'],fsl['FLIRT_cost_func'],
+        df.loc[len(df)+1]=[fsl['results_base_dir'].split('/')[-1],fsl['t_size'],fsl['bet_frac'],str(fsl['FLIRT_cost_func'])[2:len(fsl['FLIRT_cost_func']) - 3],
                            fsl['interp_FLIRT'],fsl['dof_FLIRT'],str(fsl['rigid2D_FLIRT']),fsl['interp_FNIRT'],
                            fsl['FNIRT_subsamp'],fsl['FNIRT_warpres']]
-        df.to_csv(csv,index=False)
+        df.to_csv(csv,index=False,float_format='%.3f')
         print df
 
         print 'results csv updated'
     except IOError:
         print csv + 'does not exist.'
+
+# def check_params_used(fsl,csv):
+#     try:
+#         if not os.path.isfile(csv):
+#             raise IOError
+#         import pandas as pd
+#         df = pd.read_csv(csv,index_col = False)
+#         keys = [df.columns[i] for i in range(len(df.columns)) ]
+#         vals = [fsl['results_base_dir'].split('/')[-1],fsl['t_size'],fsl['bet_frac'],str(fsl['FLIRT_cost_func'])[2:len(fsl['FLIRT_cost_func']) - 3],
+#                            fsl['interp_FLIRT'],fsl['dof_FLIRT'],str(fsl['rigid2D_FLIRT']),fsl['interp_FNIRT'],
+#                            fsl['FNIRT_subsamp'],fsl['FNIRT_warpres']]
+#
+#
+#         test = dict(zip(keys,vals))
+#         print test
+#         for i in range(len(df.index)):
+#             match_count = 0
+#             x = df.loc[i].to_dict()
+#             x['bet_frac'] = round(x['bet_frac'],2)
+#             x['dof_FLIRT'] = int(x['dof_FLIRT'])
+#             x['t_size'] = int(x['t_size'])
+#             print x
+#             for key in x:
+#                 if test[key] != x[key]:
+#                     print test[key]
+#                     print x[key]
+#             if match_count == len(test):
+#                 print 'params have been previously tested.'
+#                 return True
+#         print 'these params have not yet been used.'
+#         return False
+#
+#
+#
+#     except IOError:
+#         print csv + 'does not exist.'
 # Added 1.19.15
 # Method that grabs all the corrected movies and copies them into a single folder for easier veiwing
 #
 # !! Needs params
-
 def collect_results():
     import os
     from shutil import copyfile
@@ -373,3 +407,5 @@ def collect_results():
             copyfile(file,dest)
             copy_count += 1
     print str(copy_count) + ' files copied.'
+
+
