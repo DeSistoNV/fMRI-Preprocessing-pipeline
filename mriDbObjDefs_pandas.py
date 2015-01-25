@@ -347,41 +347,36 @@ def append_param_csv(fsl,csv):
     except IOError:
         print csv + 'does not exist.'
 
-# def check_params_used(fsl,csv):
-#     try:
-#         if not os.path.isfile(csv):
-#             raise IOError
-#         import pandas as pd
-#         df = pd.read_csv(csv,index_col = False)
-#         keys = [df.columns[i] for i in range(len(df.columns)) ]
-#         vals = [fsl['results_base_dir'].split('/')[-1],fsl['t_size'],fsl['bet_frac'],str(fsl['FLIRT_cost_func'])[2:len(fsl['FLIRT_cost_func']) - 3],
-#                            fsl['interp_FLIRT'],fsl['dof_FLIRT'],str(fsl['rigid2D_FLIRT']),fsl['interp_FNIRT'],
-#                            fsl['FNIRT_subsamp'],fsl['FNIRT_warpres']]
-#
-#
-#         test = dict(zip(keys,vals))
-#         print test
-#         for i in range(len(df.index)):
-#             match_count = 0
-#             x = df.loc[i].to_dict()
-#             x['bet_frac'] = round(x['bet_frac'],2)
-#             x['dof_FLIRT'] = int(x['dof_FLIRT'])
-#             x['t_size'] = int(x['t_size'])
-#             print x
-#             for key in x:
-#                 if test[key] != x[key]:
-#                     print test[key]
-#                     print x[key]
-#             if match_count == len(test):
-#                 print 'params have been previously tested.'
-#                 return True
-#         print 'these params have not yet been used.'
-#         return False
-#
-#
-#
-#     except IOError:
-#         print csv + 'does not exist.'
+# Added 1.23.15
+# Method to check if params have been used against csv file
+#param fsl : fsl_preproc_params dictionary
+#param csv: csv file of the paramters db
+def check_params_used(fsl,csv):
+    try:
+        if not os.path.isfile(csv):
+            raise IOError
+        import pandas as pd
+        df = pd.read_csv(csv,index_col = False)
+        keys = [df.columns[i] for i in range(len(df.columns)) ]
+        vals = [fsl['results_base_dir'].split('/')[-1],fsl['t_size'],fsl['bet_frac'],str(fsl['FLIRT_cost_func'])[2:len(fsl['FLIRT_cost_func']) - 3],
+                           fsl['interp_FLIRT'],fsl['dof_FLIRT'],fsl['rigid2D_FLIRT'],fsl['interp_FNIRT'],
+                           str([str(i) for i in fsl['FNIRT_subsamp']]).replace("'",''),str([str(i) for i in fsl['FNIRT_warpres']]).replace("'",'')]
+        test = dict(zip(keys,vals))
+        counts = []
+        for i in df.index:
+            test_row = df.loc[i].to_dict()
+            test_row['bet_frac'] = round(test_row['bet_frac'],2)
+            diff = set(test_row.items()) ^ set(test.items())
+            counts.append(len(diff))
+        if 0 in counts:
+            print 'parameters have already been used'
+            return True
+        else:
+            print 'parameters have not been tested yet'
+            return False
+
+    except IOError:
+        print csv + 'does not exist.'
 # Added 1.19.15
 # Method that grabs all the corrected movies and copies them into a single folder for easier veiwing
 #
@@ -392,6 +387,7 @@ def collect_results():
 
 
     result_dirs = ['/home/nick/datDump/' + dir for dir in list(os.listdir('/home/nick/datDump')) if 'results' in dir]
+    result_dirs = [dir + '/Imagery_RF_test/corrected_movie' for dir in result_dirs]
     finals = []
     for dir in result_dirs:
         while '.nii' not in os.listdir(dir)[0]:
