@@ -3,6 +3,8 @@
 from nipype.interfaces.utility import IdentityInterface
 import os
 import sys
+import pandas as pd
+
 
 
 class fsl_preproc_inode(IdentityInterface):
@@ -53,34 +55,30 @@ class fsl_preproc_inode(IdentityInterface):
 
         """
 
-        if 'db' not in kwargs.keys():
+        if 'db' not in kwargs.keys(): # if no db passed, exit.
             sys.exit("Exception in panda_fields: need a ['db'] arg\nExecution Stopped")
-        if not os.path.isfile(kwargs['db']):
+        if not os.path.isfile(kwargs['db']): # if db does not exist, exit.
             sys.exit('Exception in panda_fields: db file: ' + kwargs['db'] + ' not found\nExecution Stopped')
-
         # if DB is a pickled pandas dataFrame
         if kwargs['db'][-2:] == '.p':
-            import pandas as pd
 
             # unpickling and loading DataFrame
             open_panda = pd.read_pickle(kwargs['db'])
 
             if 'subj' not in kwargs.keys():  # if subject not passed, lists subjects in df and exits
                 print "Available subjects are:"
-                x = set(open_panda.subject)
-                for y in x:
-                    print y
+                for sub in set(open_panda.subject):
+                    print sub
                 sys.exit("Execution Stopped, please choose a subject")
             elif 'expID' not in kwargs.keys():  # if expID not passed, lists expIDs in df and exits
                 print "Available experiments are:\n"
-                x = set(open_panda.expID)
-                for y in x:
-                    print y
+                for id in set(open_panda.experiment):
+                    print id
                 sys.exit("Execution Stopped, please choose a expID")
 
             # if subject and expid are passed
-            if 'runType' not in kwargs.keys():  # if no runType is passed, gets all runTypes from df
-                kwargs['runType'] = [i for i in set(open_panda.runType)]
+            if 'runType' not in kwargs.keys():  # if no runType is passed, makes a list of all run types
+                kwargs['runType'] = [t for t in set(open_panda.runType)]
 
             # here we need to get all session ids | subject and exp id are good
             sessions = []
@@ -163,120 +161,8 @@ class fsl_preproc_inode(IdentityInterface):
                 elif ii == 'med':  # from the center out
                     self.inputs.spatial_crop[keys[jj][0]] = [(ff - mn[jj]) / 2 for ff in dims[jj]]
                     self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-
-        ###########################
-        #  SQL STUFF STARTS HERE  #
-        ###########################
-        elif kwargs['db'][-2:] == 'db':
-            import sqlite3
-
-            connection = sqlite3.connect(kwargs['db'])
-            connection.row_factory = sqlite3.Row
-            cursor = self.connection.cursor()
-            if 'subj' not in kwargs.keys():
-                cursor.execute('SELECT DISTINCT subject FROM mri')
-                res = cursor.fetchall()
-                print "Available subjects are:\n"
-                res = [this[0] for this in res]
-                for col in res:
-                    print col
-                return
-            elif 'expID' not in kwargs.keys():
-                cursor.execute('SELECT DISTINCT expID FROM mri WHERE subject=:subj', kwargs)
-                res = cursor.fetchall()
-                print "Available experiments are:\n"
-                res = [this[0] for this in res]
-                for col in res:
-                    print col
-                return
-            if 'runType' not in kwargs.keys():
-                cursor.execute('SELECT DISTINCT runType FROM mri')
-                res = cursor.fetchall()
-                kwargs['runType'] = [this[0] for this in res]
-
-            # get the right sessions
-            cursor.execute('SELECT DISTINCT sessionID FROM mri WHERE subject=:subj', kwargs)
-            res = cursor.fetchall()
-            getThese = [this[0] for this in res]
-            sessList = getThese
-            if 'sessList' in kwargs.keys():
-                if kwargs['sessList']:
-                    sessList = [getThese[ii] for ii in kwargs['sessList']]
-
-            # construct the query
-            query = 'SELECT runID FROM mri WHERE subject=? AND expID=? AND sessionID IN (%s)' % ', '.join('?' for ii in
-                                                                                                          sessList)
-
-            # collect the query data
-            sessList.insert(0, kwargs['expID'])
-            sessList.insert(0, kwargs['subj'])
-
-            # fetch the run id's
-            cursor.execute(query, sessList)
-            res = cursor.fetchall()
-            runIDs = [this[0] for this in res]
-
-            # select the runs you want from run list
-            if 'runList' in kwargs.keys():
-                if kwargs['runList']:
-                    runIDs = [runIDs[ii] for ii in kwargs['runList']]
-
-            self.inputs.abs_run_id = runIDs
-
-            # get the fields
-            query = 'SELECT runPath,runName,nVols,seimensRef,padVol FROM mri WHERE runID IN (%s)' % ', '.join(
-                '?' for ii in runIDs)
-            cursor.execute(query, runIDs)
-            res = cursor.fetchall()
-
-            # populate the run_list field
-            self.inputs.run_list = []
-            self.inputs.t_min = []
-            self.inputs.nVols = []
-            padNum = []
-            for rows in res:
-                self.inputs.run_list.append(rows['runPath'] + '/' + rows['runName'])
-                self.inputs.t_min.append(rows['seimensRef'])
-                self.inputs.nVols.append(rows['nVols'])
-                padNum.append(rows['padVol'])
-            self.inputs.padNum = max(padNum)
-
-            # need to add a specific volume each of the elements in the run_list. so we add the last one
-            for ii, runs in enumerate(self.inputs.run_list):
-                self.inputs.run_list[ii] += ('/' + sorted([i for i in os.listdir(runs) if '.nii' in i]).pop())
-
-            # finally, deal with spatial cropping issues if any of the volumes don't have the same size
-            # grab the dimensions for each of the runs
-            sizes = 'matrixSizeX,matrixSizeY,matrixSizeZ'
-            query = 'SELECT ' + sizes + ' FROM mri WHERE runID in (%s)' % ', '.join('?' for ii in runIDs)
-            cursor.execute(query, runIDs)
-            res = cursor.fetchall()
-            # find the min of each dimension across runs
-            dims = [[rr[dd] for rr in res] for dd in sizes.split(',')]  # inputs dimensions in a list of 3 lists
-
-            mn = map(min, dims)
-            self.inputs.spatial_crop = {}
-            keys = [('x_min', 'x_size'), ('y_min', 'y_size'),
-                    ('z_min', 'z_size')]  # these keys refer to input args. in fslroi. kinda hacky.
-            for jj, ii in enumerate(kwargs['cropRule']):
-                if ii == 'min':  # from left to right
-                    self.inputs.spatial_crop[keys[jj][0]] = [0 for ff in dims[jj]]
-                    self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-                elif ii == 'max':  # from right to left
-                    self.inputs.spatial_crop[keys[jj][0]] = [ff - mn[jj] for ff in dims[jj]]
-                    self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-                elif ii == 'med':  # from the center out
-                    self.inputs.spatial_crop[keys[jj][0]] = [(ff - mn[jj]) / 2 for ff in dims[jj]]
-                    self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-            try:
-                cursor.close()
-                del cursor  # this will actually destroy attribute
-                del connection
-            except:
-                print "no database open"
-                pass
         else:
-            sys.exit('invalid database type. need .db or .p')
+            sys.exit('Need a pickled pandas DataFrame as db arg')
 
 
 # Added 1.13.15
@@ -353,13 +239,16 @@ def append_param_csv(fsl, csv):
 
 
 # Added 1.23.15
-# Method to check if params have been used against csv file
+# Method to check if params have been used against csv file as well as checking if the base_dir is used
 # param fsl : fsl_preproc_params dictionary
 # param csv: csv file of the parameters db
 def check_params_used(fsl, csv):
     try:
         if not os.path.isfile(csv):
             raise IOError
+        if os.path.isdir(fsl['results_base_dir']):
+            sys.exit('Execution Stopped: ' + fsl['results_base_dir'] + ' already exists.')
+
         import pandas as pd
 
         df = pd.read_csv(csv, index_col=False)
@@ -379,14 +268,12 @@ def check_params_used(fsl, csv):
             diff = set(test_row.items()) ^ set(test.items())
             counts.append(len(diff))
         if 0 in counts:
-            print 'parameters have already been used'
-            return True
+            sys.exit('Execution Stopped: Parameters already used.')
         else:
             print 'parameters have not been tested yet'
-            return False
 
     except IOError:
-        print csv + 'does not exist.'
+        sys.exit('Execution Stopped: ' + csv + ' does not exist.')
 
 
 # Added 1.19.15
@@ -408,9 +295,7 @@ def collect_results():
     copy_count = 0
     for f in finals:
         path = '/home/nick/datDump/corrected_movies/' + f.split('/')[4][7:] + '.nii.gz'
-        if os.path.isfile(path):
-            pass
-        else:
+        if not os.path.isfile(path):
             copyfile(f, path)
             copy_count += 1
     print str(copy_count) + ' files copied.'
