@@ -8,11 +8,16 @@ from datetime import datetime
 from collections import OrderedDict
 
 from PyQt4 import QtGui
+from PyQt4 import QtCore
+
 
 
 
 ## 1.0 - 11.20.2014 - first working copy
 ## 1.0.1 - added fields for working volume and brain mask
+## 1.1 - resized main window
+##     - removed pickling for simplicity
+##     -rounded voxel size
 
 class NoFileNameError(Exception):
     pass
@@ -61,7 +66,7 @@ class QtInter(QtGui.QWidget):
         self.usedNames = []  # list for checking if a file has already been added
         self.rows = []  # stack of files to be added to database
         self.autoFiles = []  # Stack of parsed files
-        self.yIncrement = 23  # constant for input and label placement
+        self.yIncrement = 25  # constant for input and label placement
         self.tableObjects = []  # list of files in table
 
         self.append_order_list = ['date', 'subject', 'experiment', 'working_vol', 'brain_mask', 'sessionID',
@@ -91,28 +96,8 @@ class QtInter(QtGui.QWidget):
                            '}'
                            "QTextEdit {"
                            'background : rgba(255,255,255,55%)'
-                           '}')  # setting opacity of all entry fields
-
-        # self.button = QtGui.QPushButton('Test Values', self)
-        # self.button.clicked.connect(self.test_vals)
-        # self.button.setToolTip('Test Values for testing')
-        # self.button.move(150, 0)
-
-        self.dirButton = QtGui.QPushButton('get files', self)
-        self.dirButton.clicked.connect(self.create_auto_list)
-        self.dirButton.move(20, 600)
-        self.dirButton.setToolTip('Find all .nii files in current directory')
-
-        self.addButton = QtGui.QPushButton('Add File', self)
-        self.addButton.clicked.connect(self.file_append)
-        self.addButton.move(280, 600)
-        self.addButton.setToolTip('Add current file to stack')
-
-        self.pandaButton = QtGui.QPushButton('pandas and CSV', self)
-        self.pandaButton.clicked.connect(self.pickle_panda)
-        self.pandaButton.move(655, 750)
-        self.pandaButton.resize(100, 25)
-        self.pandaButton.setToolTip('Output to Pickled Pandas DataFrame and CSV file')
+                           '}'
+        )  # setting opacity of all entry fields
 
         self.Inputs = dict()
         self.Labels = dict()
@@ -140,11 +125,14 @@ class QtInter(QtGui.QWidget):
         for i in range(len(self.InputLabels)):
             if i < self.InputLabels.index('matrix'):
                 self.Inputs[self.InputLabels[i]] = QtGui.QLineEdit(self)
-                self.Inputs[self.InputLabels[i]].move(100, self.yIncrement + self.yIncrement * i)
-                self.Inputs[self.InputLabels[i]].resize(250, 20)
+                self.Inputs[self.InputLabels[i]].move(125, self.yIncrement + self.yIncrement * i)
+                self.Inputs[self.InputLabels[i]].resize(250, 25)
             self.Labels[self.InputLabels[i]] = QtGui.QLabel(self.InputLabels[i], self)
-            self.Labels[self.InputLabels[i]].move(5, self.yIncrement + self.yIncrement * i + 4)
+            self.Labels[self.InputLabels[i]].setAlignment(QtCore.Qt.AlignRight)
+            self.Labels[self.InputLabels[i]].move(4, self.yIncrement + self.yIncrement * i + 4)
+            self.Labels[self.InputLabels[i]].resize(118,25)
             self.Labels[self.InputLabels[i]].lower()
+
         for i in range(len(self.inputsToolTips)):
             self.Inputs[self.InputLabels[i]].setToolTip(self.inputsToolTips[i])
 
@@ -154,45 +142,64 @@ class QtInter(QtGui.QWidget):
                                'voxel dimensions in mm', 'voxel dimensions in mm', 'slice thickness']
         for i in range(3):
             self.Inputs[self.MatrixLabels[i]] = QtGui.QLineEdit(self)
-            self.Inputs[self.MatrixLabels[i]].move(100 + 50 * i, self.yIncrement + self.yIncrement * 21)
-            self.Inputs[self.MatrixLabels[i]].resize(40, 20)
+            self.Inputs[self.MatrixLabels[i]].move(125 + 90 * i, self.yIncrement + self.yIncrement * 21)
+            self.Inputs[self.MatrixLabels[i]].resize(70, 25)
             self.Inputs[self.MatrixLabels[i]].setToolTip(self.MatrixToolTips[i])
             self.Inputs[self.MatrixLabels[i + 3]] = QtGui.QLineEdit(self)
-            self.Inputs[self.MatrixLabels[i + 3]].move(100 + 50 * i, self.yIncrement + self.yIncrement * 22)
-            self.Inputs[self.MatrixLabels[i + 3]].resize(40, 20)
+            self.Inputs[self.MatrixLabels[i + 3]].move(125 + 90 * i, self.yIncrement + self.yIncrement * 22)
+            self.Inputs[self.MatrixLabels[i + 3]].resize(70, 25)
             self.Inputs[self.MatrixLabels[i + 3]].setToolTip(self.MatrixToolTips[i + 3])
 
         # # LABELS AND INPUTS ARE BOTH IN DICTS BY THEIR LABEL NAME HERE
         self.table = QtGui.QListWidget(self)
-        self.table.resize(215, 597)
-        self.table.move(365, 25)
+        self.table.resize(270, 575)
+        self.table.move(380, 25)
 
         self.tableLabel = QtGui.QLabel('<html><b>FILES CURRENTLY ADDED</b></html>', self)
-        self.tableLabel.move(395, 10)
+        self.tableLabel.move(400, 10)
         self.table.currentItemChanged.connect(self.view_file)
 
         self.parse_table = QtGui.QListWidget(self)
-        self.parse_table.resize(210, 597)
-        self.parse_table.move(585, 25)
+        self.parse_table.resize(340, 575)
+        self.parse_table.move(655, 25)
 
         self.parseLabel = QtGui.QLabel('<html><b>PARSED FILES READY TO ENTER</b></html>', self)
-        self.parseLabel.move(600, 10)
+        self.parseLabel.move(750, 10)
         self.parse_table.currentItemChanged.connect(self.select_parse_file)
 
+        self.csvLabel = QtGui.QLabel("Full path to save the CSV file:",self)
+        self.csvLabel.move(300,755)
+
         self.outputInput = QtGui.QLineEdit(self)
-        self.outputInput.move(350, 750)
-        self.outputInput.resize(300, 23)
-        self.outputInput.setToolTip('Enter path to save files to here. DO NOT INCLUDE FILE EXTENSION')
+        self.outputInput.move(485, 750)
+        self.outputInput.resize(400, 25)
+        self.outputInput.setToolTip('Enter path to export here')
 
         self.unAddButton = QtGui.QPushButton('un-add', self)
-        self.unAddButton.move(495, 575)
+        self.unAddButton.move(495, 600)
         self.unAddButton.clicked.connect(self.un_add)
         self.unAddButton.setToolTip('select an item from the added list and press to un-add')
 
         self.nextPathButton = QtGui.QPushButton('next path',self)
-        self.nextPathButton.move(150,600)
+        self.nextPathButton.move(250,600)
         self.nextPathButton.clicked.connect(self.next_path)
         self.nextPathButton.setToolTip('clear currently unappended filed and allow a new directory to be parsed')
+
+        self.dirButton = QtGui.QPushButton('get files', self)
+        self.dirButton.clicked.connect(self.create_auto_list)
+        self.dirButton.move(20, 600)
+        self.dirButton.setToolTip('Find all .nii files in current directory')
+
+        self.addButton = QtGui.QPushButton('Add File', self)
+        self.addButton.clicked.connect(self.file_append)
+        self.addButton.move(780, 600)
+        self.addButton.setToolTip('Add current file to stack')
+
+        self.pandaButton = QtGui.QPushButton('export to CSV', self)
+        self.pandaButton.clicked.connect(self.pickle_panda)
+        self.pandaButton.move(890, 750)
+        self.pandaButton.resize(100, 25)
+        self.pandaButton.setToolTip('Output to Pickled Pandas DataFrame and CSV file')
 
 
         self.test_vals()
@@ -201,7 +208,7 @@ class QtInter(QtGui.QWidget):
         self.message = QtGui.QTextEdit(self)
         self.message.setReadOnly(True)
         self.message.move(5, 625)
-        self.message.resize(790, 120)
+        self.message.resize(990, 120)
         self.message.append(self.open_message)
         self.message.moveCursor(QtGui.QTextCursor.End)
 
@@ -211,7 +218,7 @@ class QtInter(QtGui.QWidget):
         self.background_image.lower()
 
         self.setGeometry(300, 100, 800, 780)
-        self.setFixedSize(800, 780)
+        self.setFixedSize(1000, 780)
         self.setWindowOpacity(0.95)
         self.setWindowTitle('Brain Stuff: PyQT')
         self.show()
@@ -258,19 +265,19 @@ class QtInter(QtGui.QWidget):
     """ action for test values button """
 
     def test_vals(self):
-        self.Inputs['run_code_path'].setText('Run/Code/Path')
-        self.Inputs['main path'].setText('/home/nick/MUSC/Naselaris_TN/')
+        self.Inputs['run_code_path'].setText('')
+        self.Inputs['main path'].setText('/musc.repo/')
         self.Inputs['experiment'].setText('imagery.rf')
-        self.Inputs['sessionID'].setText('55')
-        self.Inputs['design matrix'].setText('design_matrix')
+        self.Inputs['sessionID'].setText('1')
+        self.Inputs['design matrix'].setText('design_matrix.npy')
         self.Inputs['location'].setText('The Moon')
         self.Inputs['TR'].setText('2')
         self.Inputs['run_code_file'].setText('run_experiment.py')
-        self.Inputs['design_matrix_path'].setText('/framefiles')
-        self.Inputs['frameFilePath'].setText('/frame/file/path')
-        self.Inputs['picPath'].setText('/pic/path/')
+        self.Inputs['design_matrix_path'].setText('/musc.repo/')
+        self.Inputs['frameFilePath'].setText('/musc.repo/')
+        self.Inputs['picPath'].setText('/musc.repo/')
         self.Inputs['siemensRef'].setText('0')
-        self.Inputs['padVol'].setText('55')
+        self.Inputs['padVol'].setText('0')
 #        self.button.deleteLater()
 
     # Action for all of em button ;processing grab_directory output
@@ -354,9 +361,9 @@ class QtInter(QtGui.QWidget):
                 self.Inputs['matrix_y'].setText('')
                 self.Inputs['n_slices'].setText('')
                 self.message.append('<html><font color = "red">Error: Unable to parse matrix dimensions<br></font></html>')
-            self.Inputs['vox_x'].setText(parse['Voxel size x (mm)'])
-            self.Inputs['vox_y'].setText(parse['Voxel size y (mm)'])
-            self.Inputs['vox_z'].setText(parse['Slice thickness (mm)'])
+            self.Inputs['vox_x'].setText(str(round(float(parse['Voxel size x (mm)']),2)))
+            self.Inputs['vox_y'].setText(str(round(float(parse['Voxel size y (mm)']),2)))
+            self.Inputs['vox_z'].setText(str(round(float(parse['Slice thickness (mm)']),2)))
         except IOError:
             self.message.append(
                     '<html><font color = "red">ERROR: no suck file or directory - '
@@ -403,9 +410,9 @@ class QtInter(QtGui.QWidget):
             s = pd.DataFrame(data=data, columns=keys)
             s.index.name = 'runID'
             pd.to_pickle(s, str(self.outputInput.text()) + '.p')
-            self.message.append(
-                '<html><font color = "green"><b>---------- PANDA PICKLED TO ' + str(
-                    self.outputInput.text()) + '.p' + '---------</b><br></font></html>')
+            # self.message.append(
+            #     '<html><font color = "green"><b>---------- PANDA PICKLED TO ' + str(
+            #         self.outputInput.text()) + '.p' + '---------</b><br></font></html>')
             s.to_csv(str(self.outputInput.text()) + '.csv',columns=s[1:])
             self.message.append(
                 '<html><font color = "green"><b>--------CSV saved to ' + str(
