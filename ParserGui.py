@@ -55,7 +55,6 @@ def grab_directory(directory):
             for ff in sub_files:
                 if ff.find('.txt') == -1:
                     files.append(directory2 + '/' + ff)
-        print files
         return files
 
 
@@ -202,6 +201,7 @@ class QtInter(QtGui.QWidget):
         self.pandaButton.setToolTip('Output to Pickled Pandas DataFrame and CSV file')
 
 
+
         self.test_vals()
         # ############ MAKIN DA WINDOW ##################
 
@@ -213,9 +213,10 @@ class QtInter(QtGui.QWidget):
         self.message.moveCursor(QtGui.QTextCursor.End)
 
         self.background_image = QtGui.QLabel(self)
-        self.background_image.resize(800, 800)
-        self.background_image.setStyleSheet("QLabel {background-image: url(/home/nick/Documents/nuerobg.png);}")
+        self.background_image.resize(1000, 780)
+        self.background_image.setStyleSheet("QLabel {background-image: url(nbg.png);}")
         self.background_image.lower()
+
 
         self.setGeometry(300, 100, 800, 780)
         self.setFixedSize(1000, 780)
