@@ -14,6 +14,7 @@ pipeline_data_params['experiment'] = 'imagery.rf'
 pipeline_data_params['run_list'] = []
 pipeline_data_params['sess_list'] = []
 pipeline_data_params['crop_this'] = ['med', 'med', 'min']  ##note that this will almost never be needed, and isn't need in this example
+pipeline_data_params['db'] = '/home/nick/Desktop/ImageryRF_db.csv'
 pipeline_data_params['db'] = '/home/nick/MUSC/2sessions.p'
 
 ## putting above selections into input node
@@ -25,16 +26,19 @@ main_inputnode.panda_fields(
                    db = pipeline_data_params['db'])	  	##we want all runs here.
 
 fsl_preproc_params = dict() # THESE ARE THE RUN PARAMS THAT CHANGE WHAT PIPELINE DOES
+fsl_preproc_params['basedir'] = '/media/nick/10259e32-b12f-4a45-a7aa-c73d797b1566/nip' # intermediate pipeline dump
 fsl_preproc_params['basedir'] = '/home/nick/datDump/run_from_pandas' # intermediate pipeline dump
 
 # save the results with current time in file name
 # fsl_preproc_params['results_base_dir'] = '/home/nick/datDump/results-{}'.format(datetime.now().strftime('%b-%d-%Y-%H:%M'))
 
+fsl_preproc_params['results_base_dir'] = '/media/nick/10259e32-b12f-4a45-a7aa-c73d797b1566/nip/results'
 fsl_preproc_params['results_base_dir'] = '/home/nick/datDump/2sessions/results_nofnirt'
 fsl_preproc_params['results_container'] = 'Imagery_RF_test' #output dump specific
 fsl_preproc_params['convert_dicoms'] = False
 #default_params['ref_vol_runList'] = [0]		#grab only the first run for aligning all the other runs to
 fsl_preproc_params['t_size'] = 10000 # just go with it (max possible size).
+fsl_preproc_params['nProc'] = 7 # number of CPUS
 fsl_preproc_params['nProc'] = 1 # number of CPUS
 fsl_preproc_params['bet_frac'] = .2 # BRAIN EXTRACTION TOOL THRESHOLD
 

@@ -5,7 +5,7 @@ import os
 import sys
 import pandas as pd
 
-<<<<<<< HEAD
+
 
 class NotPandasDataFrameException(Exception):
     pass
@@ -15,8 +15,6 @@ class MissingParameterException(Exception):
     pass
 
 
-=======
->>>>>>> 625bb00662738a18ee9dc4a8f0381a176beeef9d
 class fsl_preproc_inode(IdentityInterface):
     # this __init__ definition uses a trick from stack overflow to initialize a super class
     # creates the input node fields needed to start an fsl_preproc pipeline
@@ -59,10 +57,7 @@ class fsl_preproc_inode(IdentityInterface):
 
     # method for populating the input node fields with data from mri db
     # NEED TO ADD AS KEYWORD INPUTS: runtype and runnum (in case I only want first or last or whatever)
-<<<<<<< HEAD
 
-    def panda_fields(self, **kwargs):
-=======
 
     def panda_fields(self, **kwargs):
 
@@ -192,7 +187,6 @@ class fsl_preproc_inode(IdentityInterface):
             else:
                 sys.exit('Need a pickled pandas DataFrame  or CSV as db arg')
 
->>>>>>> 625bb00662738a18ee9dc4a8f0381a176beeef9d
 
             """
             populate_fields(subj, expID, runType, sess_list, runList)
