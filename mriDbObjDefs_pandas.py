@@ -5,8 +5,6 @@ import os
 import sys
 import pandas as pd
 
-
-
 class fsl_preproc_inode(IdentityInterface):
     # this __init__ definition uses a trick from stack overflow to initialize a super class
     # creates the input node fields needed to start an fsl_preproc pipeline
@@ -18,7 +16,7 @@ class fsl_preproc_inode(IdentityInterface):
             'ref_run',  # this is going to be the reference volume for motion correction.
             'padNum',  # = the largest number of padding vols. required for any run in the run_list
             'nVols',  # [], the total number of volumes that you need to end up with for each run.
-            'run_list',  # [], list of runs to preprocess
+            'run_list',  # [], list of runs to pre-process
             'results_base_dir',  # directory for where results go
             'results_container',
             'do_FNIRT',
@@ -34,135 +32,150 @@ class fsl_preproc_inode(IdentityInterface):
             'rigid2D_FLIRT'
             'convert_dicoms'
         ])
+        self.Df = ''
+
+    def display_option(self, arg):
+        print 'Available ' + arg + ' are:'
+        if arg == 'Subject':
+            for sub in set(self.Df.subject):
+                print sub
+        if arg == 'expID':
+            for exp in set(self.Df.experiment):
+                print exp
+
+        sys.exit('Execution Stopped, please choose a ' + arg)
 
     # method for populating the input node fields with data from mri db
     # NEED TO ADD AS KEYWORD INPUTS: runtype and runnum (in case I only want first or last or whatever)
+
     def panda_fields(self, **kwargs):
 
-        """
-        populate_fields(subj, expID, runType, sess_list, runList)
-        subj ~ a single string to identify one subject
-        expID ~ a single string to identify the experiment
-        runType ~ a tuple of strings specifying the type of run 'img', 'val', 'trn', etc.
-        sess_list ~ a list of integers specifying which sessions you want from this subject/experiment (in chronological
-        order)
-        runList ~ a list of numbers specifying which runs you want (in chronological order)
-        returns a list of run volume names given the specified subject, experiment, and sessions, runType and runList
-        if subj or expID not specified, will print all distinct possibilities.
-        if sess_list, runType or runList not specified, will assume all distinct possibilities.
-        note runList is not a field in the mri db. it is an index into the list of runs associated with a query. we
-        assume entered in chronological order.
+            """
+            populate_fields(subj, expID, runType, sess_list, runList)
+            subj ~ a single string to identify one subject
+            expID ~ a single string to identify the experiment
+            runType ~ a tuple of strings specifying the type of run 'img', 'val', 'trn', etc.
+            sess_list ~ a list of integers specifying which sessions you want from this subject/experiment (in chronological
+            order)
+            runList ~ a list of numbers specifying which runs you want (in chronological order)
+            returns a list of run volume names given the specified subject, experiment, and sessions, runType and runList
+            if subj or expID not specified, will print all distinct possibilities.
+            if sess_list, runType or runList not specified, will assume all distinct possibilities.
+            note runList is not a field in the mri db. it is an index into the list of runs associated with a query. we
+            assume entered in chronological order.
+            """
 
-        """
+            if 'db' not in kwargs.keys(): # if no db passed, exit.
+                sys.exit("Exception in panda_fields: need a ['db'] arg\nExecution Stopped")
+            if not os.path.isfile(kwargs['db']): # if db does not exist, exit.
+                sys.exit('Exception in panda_fields: db file: ' + kwargs['db'] + ' not found\nExecution Stopped')
+            # if DB is a pickled pandas dataFrame
+            if kwargs['db'][-2:] == '.p' or kwargs['db'][-3:] == 'csv':
+                if kwargs['db'][-2:] == '.p':
+                    # unpickling and loading DataFrame
+                    open_panda = pd.read_pickle(kwargs['db'])
+                else:
+                    open_panda = pd.read_csv(kwargs['db'],index_col = False)
 
-        if 'db' not in kwargs.keys(): # if no db passed, exit.
-            sys.exit("Exception in panda_fields: need a ['db'] arg\nExecution Stopped")
-        if not os.path.isfile(kwargs['db']): # if db does not exist, exit.
-            sys.exit('Exception in panda_fields: db file: ' + kwargs['db'] + ' not found\nExecution Stopped')
-        # if DB is a pickled pandas dataFrame
-        if kwargs['db'][-2:] == '.p':
+                if 'subj' not in kwargs.keys():  # if subject not passed, lists subjects in df and exits
+                    print "Available subjects are:"
+                    for sub in set(open_panda.subject):
+                        print sub
+                    sys.exit("Execution Stopped, please choose a subject")
+                elif 'expID' not in kwargs.keys():  # if expID not passed, lists expIDs in df and exits
+                    print "Available experiments are:\n"
+                    for id in set(open_panda.experiment):
+                        print id
+                    sys.exit("Execution Stopped, please choose a expID")
 
-            # unpickling and loading DataFrame
-            open_panda = pd.read_pickle(kwargs['db'])
+                # if subject and expid are passed
+                if 'runType' not in kwargs.keys():  # if no runType is passed, makes a list of all run types
+                    kwargs['runType'] = [t for t in set(open_panda.runType)]
 
-            if 'subj' not in kwargs.keys():  # if subject not passed, lists subjects in df and exits
-                print "Available subjects are:"
-                for sub in set(open_panda.subject):
-                    print sub
-                sys.exit("Execution Stopped, please choose a subject")
-            elif 'expID' not in kwargs.keys():  # if expID not passed, lists expIDs in df and exits
-                print "Available experiments are:\n"
-                for id in set(open_panda.experiment):
-                    print id
-                sys.exit("Execution Stopped, please choose a expID")
+                # here we need to get all session ids | subject and exp id are good
+                sessions = []
 
-            # if subject and expid are passed
-            if 'runType' not in kwargs.keys():  # if no runType is passed, makes a list of all run types
-                kwargs['runType'] = [t for t in set(open_panda.runType)]
+                # for the number of runs in the dataFrame
+                for i in xrange(len(open_panda.index) - 1):
+                    # sessions = [(subject,sessionID)] for all runs in dataFrame
+                    sessions.append((open_panda.subject[i], open_panda.sessionID[i]))
 
-            # here we need to get all session ids | subject and exp id are good
-            sessions = []
+                # dropping all runs that are not passed subject initials
+                sess_list = [i for i in set(int(i[1]) for i in sessions if i[0] == kwargs['subj'])]
+                # inserting expid and subject at beginning of list
+                sess_list.insert(0, kwargs['expID'])
+                sess_list.insert(0, kwargs['subj'])
+                run_temp = []
 
-            # for the number of runs in the dataFrame
-            for i in xrange(len(open_panda.index) - 1):
-                # sessions = [(subject,sessionID)] for all runs in dataFrame
-                sessions.append((open_panda.subject[i], open_panda.sessionID[i]))
+                # for number of runs in DataFrame
+                for i in xrange(len(open_panda.index) - 1):
+                    run_temp.append((i, open_panda.sessionID[i]))
+                # here run_temp is list[(int,sessionID)]
 
-            # dropping all runs that are not passed subject initials
-            sess_list = [i for i in set(int(i[1]) for i in sessions if i[0] == kwargs['subj'])]
-            # inserting expid and subject at beginning of list
-            sess_list.insert(0, kwargs['expID'])
-            sess_list.insert(0, kwargs['subj'])
-            run_temp = []
+                # keeping only tuples from run_temp if sessionID is in session list
+                runIDs = [i[0] for i in run_temp if int(i[1]) in sess_list]
 
-            # for number of runs in DataFrame
-            for i in xrange(len(open_panda.index) - 1):
-                run_temp.append((i, open_panda.sessionID[i]))
-            # here run_temp is list[(int,sessionID)]
+                # NEED TO LOOK AT THIS SEEMS JACKED
+                if 'runList' in kwargs.keys():
+                    if kwargs['runList']:
+                        runIDs = [runIDs[ii] for ii in kwargs['runList']]
+                self.inputs.abs_run_id = runIDs
 
-            # keeping only tuples from run_temp if sessionID is in session list
-            runIDs = [i[0] for i in run_temp if int(i[1]) in sess_list]
+                # (runPath,runName,nVols,Sref,Padvol) for where runID in runIDs
+                res = []
+                for i in xrange(len(open_panda.index) - 1):
+                    res.append(
+                        (i, open_panda.run_path[i], open_panda.run_data_file[i], open_panda.nvols[i],
+                         open_panda.siemensRef[i],
+                         open_panda.padVol[i]))
+                res = [i[1:] for i in res if i[0] in runIDs]
 
-            # NEED TO LOOK AT THIS SEEMS JACKED
-            if 'runList' in kwargs.keys():
-                if kwargs['runList']:
-                    runIDs = [runIDs[ii] for ii in kwargs['runList']]
-            self.inputs.abs_run_id = runIDs
+                # populate the run_list field
+                self.inputs.run_list = []
+                self.inputs.t_min = []
+                self.inputs.nVols = []
 
-            # (runPath,runName,nVols,Sref,Padvol) for where runID in runIDs
-            res = []
-            for i in xrange(len(open_panda.index) - 1):
-                res.append(
-                    (i, open_panda.run_path[i], open_panda.run_data_file[i], open_panda.nvols[i],
-                     open_panda.siemensRef[i],
-                     open_panda.padVol[i]))
-            res = [i[1:] for i in res if i[0] in runIDs]
+                for row in res:
+                    self.inputs.t_min.append(int(row[3]))
+                    self.inputs.nVols.append(int(row[2]))
+                self.inputs.t_min = [int(row[3]) for row in res]
+                self.inputs.run_list = [row[0] + '/' + row[1] for row in res]
+                self.inputs.padNum = max([int(row[4]) for row in res])
 
-            # populate the run_list field
-            self.inputs.run_list = []
-            self.inputs.t_min = []
-            self.inputs.nVols = []
+                # need to add a specific volume each of the elements in the run_list. so we add the last one
+                for ii, runs in enumerate(self.inputs.run_list):
+                    self.inputs.run_list[ii] += ('/' + sorted([i for i in os.listdir(runs) if '.nii' in i]).pop())
 
-            for row in res:
-                self.inputs.t_min.append(int(row[3]))
-                self.inputs.nVols.append(int(row[2]))
-            self.inputs.t_min = [int(row[3]) for row in res]
-            self.inputs.run_list = [row[0] + '/' + row[1] for row in res]
-            self.inputs.padNum = max([int(row[4]) for row in res])
+                # finally, deal with spatial cropping issues if any of the volumes don't have the same size
+                # grab the dimensions for each of the runs
+                preDims = []
+                for i in xrange(len(open_panda.index) - 1):
+                    preDims.append((i, open_panda.matrix_x[i], open_panda.matrix_y[i], open_panda.n_slices[i]))
+                preDims = [list(i[1:]) for i in preDims if i[0] in runIDs]
+                dims = [[] for x in xrange(3)]
+                for li in preDims:
+                    dims[0].append(int(li[0]))
+                    dims[1].append(int(li[1]))
+                    dims[2].append(int(li[2]))
+                dims = [tuple(dims[0]), tuple(dims[1]), tuple(dims[2])]
 
-            # need to add a specific volume each of the elements in the run_list. so we add the last one
-            for ii, runs in enumerate(self.inputs.run_list):
-                self.inputs.run_list[ii] += ('/' + sorted([i for i in os.listdir(runs) if '.nii' in i]).pop())
+                mn = map(min, dims)
+                self.inputs.spatial_crop = {}
+                keys = [('x_min', 'x_size'), ('y_min', 'y_size'),
+                        ('z_min', 'z_size')]  # these keys refer to input args. in fslroi. kinda hacky.
+                for jj, ii in enumerate(kwargs['cropRule']):
+                    if ii == 'min':  # from left to right
+                        self.inputs.spatial_crop[keys[jj][0]] = [0 for ff in dims[jj]]
+                        self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
+                    elif ii == 'max':  # from right to left
+                        self.inputs.spatial_crop[keys[jj][0]] = [ff - mn[jj] for ff in dims[jj]]
+                        self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
+                    elif ii == 'med':  # from the center out
+                        self.inputs.spatial_crop[keys[jj][0]] = [(ff - mn[jj]) / 2 for ff in dims[jj]]
+                        self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
+            else:
+                sys.exit('Need a pickled pandas DataFrame  or CSV as db arg')
 
-            # finally, deal with spatial cropping issues if any of the volumes don't have the same size
-            # grab the dimensions for each of the runs
-            preDims = []
-            for i in xrange(len(open_panda.index) - 1):
-                preDims.append((i, open_panda.matrix_x[i], open_panda.matrix_y[i], open_panda.n_slices[i]))
-            preDims = [list(i[1:]) for i in preDims if i[0] in runIDs]
-            dims = [[] for x in xrange(3)]
-            for li in preDims:
-                dims[0].append(int(li[0]))
-                dims[1].append(int(li[1]))
-                dims[2].append(int(li[2]))
-            dims = [tuple(dims[0]), tuple(dims[1]), tuple(dims[2])]
-
-            mn = map(min, dims)
-            self.inputs.spatial_crop = {}
-            keys = [('x_min', 'x_size'), ('y_min', 'y_size'),
-                    ('z_min', 'z_size')]  # these keys refer to input args. in fslroi. kinda hacky.
-            for jj, ii in enumerate(kwargs['cropRule']):
-                if ii == 'min':  # from left to right
-                    self.inputs.spatial_crop[keys[jj][0]] = [0 for ff in dims[jj]]
-                    self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-                elif ii == 'max':  # from right to left
-                    self.inputs.spatial_crop[keys[jj][0]] = [ff - mn[jj] for ff in dims[jj]]
-                    self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-                elif ii == 'med':  # from the center out
-                    self.inputs.spatial_crop[keys[jj][0]] = [(ff - mn[jj]) / 2 for ff in dims[jj]]
-                    self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-        else:
-            sys.exit('Need a pickled pandas DataFrame as db arg')
 
 
 # Added 1.13.15
@@ -176,7 +189,6 @@ def append_pandas(inputnode, params_dict, db):
 
         if not os.path.isdir(inputnode.inputs.basedir):  # check if the results_base_directory exists
             raise IOError()
-        import pandas as pd
 
         open_panda = pd.read_pickle(db)  # opening the csv file
 
@@ -219,7 +231,6 @@ def append_param_csv(fsl, csv):
     try:
         if not os.path.isfile(csv):  # checking if csv file exists
             raise IOError
-        import pandas as pd
 
         df = pd.read_csv(csv, index_col=False)  # reading the csv into a pandas DataFrame
 
@@ -248,8 +259,6 @@ def check_params_used(fsl, csv):
             raise IOError
         if os.path.isdir(fsl['results_base_dir']):
             sys.exit('Execution Stopped: ' + fsl['results_base_dir'] + ' already exists.')
-
-        import pandas as pd
 
         df = pd.read_csv(csv, index_col=False)
         keys = [df.columns[i] for i in range(len(df.columns))]
