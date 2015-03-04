@@ -1,16 +1,22 @@
 #!/bin/bash
 
+##
+### source scripts.sh ; <Function> <P1>,<P2>,.....<Pn>
+
+
+# $1 = path of grive directory
 autogrive() {
+cd $1
 while true
 do
-grive /home/nick/Desktop/grive
+grive
 sleep 250
 done
 
-
+}
 
 ## arg1 is dir of maps args 2 is dir of data arg 3 is name to name
-function run {
+run() {
 echo fugueing $2 $3
 cd /media/nick/10259e32-b12f-4a45-a7aa-c73d797b1566/Fugue/$1
 fugue -i /media/nick/10259e32-b12f-4a45-a7aa-c73d797b1566/July.2014.Imagery.RF/Naselaris_$2/$3*/*nii --loadfmap=phRadPerMs.nii --dwell=.00032 --unwarpdir=z -u $3
@@ -19,8 +25,7 @@ date
 
 }
 
-
-function all {
+all(){
 run tn_fugue/tn1 TN 1_008
 run tn_fugue/tn1 TN 1_010
 run tn_fugue/tn1 TN 1_012
@@ -90,12 +95,11 @@ run tj_fugue/m2 TJ2 1_014
 run tj_fugue/m2 TJ2 1_016
 run tj_fugue/m2 TJ2 1_024
 run tj_fugue/m2 TJ2 1_026
+
 }
 
 
-
-
-function get_maps { 
+get_maps() {
 cd /media/nick/10259e32-b12f-4a45-a7aa-c73d797b1566/Fugue/$2*/$1
 
 bet mag.nii magStrip.nii -m
@@ -108,6 +112,8 @@ fslmaths phRadUnwrap.nii -div 1.02 phRadPerMs
 
 
 }
+
+all_maps() {
 get_maps m1 co
 get_maps m1 tj
 get_maps m2 co
@@ -116,3 +122,4 @@ get_maps tn1 tn
 get_maps tn2 tn
 get_maps tn3 tn
 get_maps tn4 tn
+}
