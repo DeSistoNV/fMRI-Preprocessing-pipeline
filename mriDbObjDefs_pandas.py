@@ -37,13 +37,13 @@ class fsl_preproc_inode(IdentityInterface):
         
     ## method to display options
     def check_options(self, kwargs):
-        if 'subj' not in kwargs.keys():  # if subject not passed, lists subjects in df and exits
+        if 'subj' not in kwargs:  # if subject not passed, lists subjects in df and exits
                 print 'Available Subjects are:'
                 for sub in set(self.Df.subject):
                     print sub
                 sys.exit('Execution Stopped, please choose a Subject')
 
-        elif 'expID' not in kwargs.keys():  # if expID not passed, lists expIDs in df and exits
+        elif 'expID' not in kwargs:  # if expID not passed, lists expIDs in df and exits
             print 'Available expIDs are:'
             for exp in set(self.Df.experiment):
                 print exp
@@ -53,7 +53,7 @@ class fsl_preproc_inode(IdentityInterface):
 
 
     def open_db(self,kwargs):
-        if 'db' not in kwargs.keys(): # if no db passed, exit.
+        if 'db' not in kwargs: # if no db passed, exit.
                 sys.exit("Exception in panda_fields: need a ['db'] arg\nExecution Stopped")
         if not os.path.isfile(kwargs['db']): # if db does not exist, exit.
                 sys.exit('Exception in panda_fields: db file: ' + kwargs['db'] + ' not found\nExecution Stopped')
@@ -85,32 +85,28 @@ class fsl_preproc_inode(IdentityInterface):
         """
         
         ## opening database
-        Df = self.open_db(kwargs)
-        self.Df = Df
+        Df = self.DF = self.open_db(kwargs)
         
         ## checks subject and expID 
         self.check_options(kwargs)
         
         # if subject and expid aren't passed, get all
-        if 'runType' not in kwargs.keys():  # if no runType is passed, makes a list of all run types
+        if 'runType' not in kwargs:  # if no runType is passed, makes a list of all run types
             kwargs['runType'] = [t for t in set(Df.runType)]
         if len(kwargs['sessList']) == 0:
-                kwargs['sessList'] = [i for i in set(Df.sessionID)]
-
+            kwargs['sessList'] = [i for i in set(Df.sessionID)]
             
 
         # List of each each session in (subject,sessionID,runType,runID) Format
-        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index) -1)]
+        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index))]
 
         # dropping all runs that do not meet input params
-        run_list = [i[3] for i in sessions if i[0] == kwargs['subj'] and i[1] in kwargs['sessList'] and i[2] in kwargs['runType']]
-    
-
         # instantiating for pipeline
-        self.inputs.abs_run_id = run_list
+        self.inputs.abs_run_id = [i[3] for i in sessions if i[0] == kwargs['subj'] and i[1] in kwargs['sessList'] and i[2] in kwargs['runType']]
 
         # (runPath,runName,nVols,Sref,Padvol) for all runs in run list
-        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index) -1) if Df.runID[i] in run_list]
+        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
+        
 
         # attributes for pipeline
         self.inputs.nVols = [int(row[2]) for row in res]
@@ -120,30 +116,31 @@ class fsl_preproc_inode(IdentityInterface):
 
         # creating file paths
         self.inputs.run_list = [row[0] + '/' + row[1] + '/' for row in res]
-        self.inputs.run_list = [self.inputs.run_list[i] + sorted(os.listdir(self.inputs.run_list[i]))[::-1].pop() for i in xrange(len(self.inputs.run_list))]
+        self.inputs.run_list = [self.inputs.run_list[i] + filter(lambda x : '.nii' in x,os.listdir(self.inputs.run_list[i])).pop() for i in xrange(len(self.inputs.run_list))]
+        
 
         # finally, deal with spatial cropping issues if any of the volumes don't have the same size
         # grab the dimensions for each of the runs
-        dims = [list((Df.matrix_x[i], Df.matrix_y[i], Df.n_slices[i])) for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
+        dims = [list((Df.matrix_x[i], Df.matrix_y[i], Df.n_slices[i])) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
         dims = zip(*dims)
 
         
-#      pipeline_data_params['crop_this'] = ['med', 'med', 'min']  ##note that this will almost never be needed, and isn't need in this example
+#       pipeline_data_params['crop_this'] = ['med', 'med', 'min']  ##note that this will almost never be needed, and isn't need in this example
         mn = map(min, dims)
         self.inputs.spatial_crop = {}
 
         
         keys = [('x_min', 'x_size'), ('y_min', 'y_size'),('z_min', 'z_size')]  # these keys refer to input args. in fslroi. kinda hacky.
-        for jj, ii in enumerate(kwargs['cropRule']):
-            if ii == 'min':  # from left to right
-                self.inputs.spatial_crop[keys[jj][0]] = [0 for ff in dims[jj]]
-                self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-            elif ii == 'max':  # from right to left
-                self.inputs.spatial_crop[keys[jj][0]] = [ff - mn[jj] for ff in dims[jj]]
-                self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
-            elif ii == 'med':  # from the center out
-                self.inputs.spatial_crop[keys[jj][0]] = [(ff - mn[jj]) / 2 for ff in dims[jj]]
-                self.inputs.spatial_crop[keys[jj][1]] = [mn[jj] for ff in dims[jj]]
+        for index, item in enumerate(kwargs['cropRule']):
+            if item == 'min':  # from left to right
+                self.inputs.spatial_crop[keys[index][0]] = [0] * len(dims[index])
+                self.inputs.spatial_crop[keys[index][1]] = [mn[index] for ff in dims[index]]
+            elif item == 'max':  # from right to left
+                self.inputs.spatial_crop[keys[index][0]] = [ff - mn[index] for ff in dims[index]]
+                self.inputs.spatial_crop[keys[index][1]] = [mn[index] for ff in dims[index]]
+            elif item == 'med':  # from the center out
+                self.inputs.spatial_crop[keys[index][0]] = [(ff - mn[index]) / 2 for ff in dims[index]]
+                self.inputs.spatial_crop[keys[index][1]] = [mn[index] for ff in dims[index]]
                 
 
 
@@ -269,16 +266,22 @@ def collect_results():
     res_dir = [di + '/Imagery_RF_test/corrected_movie' for di in res_dir]
     finals = []
     for di in res_dir:
-        while '.nii' not in os.listdir(di)[0]:
+        while '.nitem' not in os.listdir(di)[0]:
             di += '/' + os.listdir(di)[0]
         di += '/' + os.listdir(di)[0]
         finals.append(di)
     copy_count = 0
     for f in finals:
-        path = '/home/nick/datDump/corrected_movies/' + f.split('/')[4][7:] + '.nii.gz'
+        path = '/home/nick/datDump/corrected_movies/' + f.split('/')[4][7:] + '.nitem.gz'
         if not os.path.isfile(path):
             copyfile(f, path)
             copy_count += 1
     print str(copy_count) + ' files copied.'
+    
+    
+def params_txt(params):
+        f = open(params['results_base_dir'] + '/parameters.txt','w')
+        for key in params:
+            f.write(" {} : {} \n".format(key,params[key]))
 
 

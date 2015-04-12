@@ -23,12 +23,12 @@ def pipe_it(subject,res,fnirt):
         doit = False
         pipeline_data_params = dict() # Select only...
         pipeline_data_params['subject'] = subject
-        pipeline_data_params['experiment'] = '3T.v.7T'
-        pipeline_data_params['run_list'] = [10,14,18,19]                      
+        pipeline_data_params['experiment'] = 'imagery.rf'
+        pipeline_data_params['run_list'] = []                      
         pipeline_data_params['sess_list'] = []
         pipeline_data_params['vox_res'] = []
         pipeline_data_params['crop_this'] = ['med', 'med', 'min']  ##note that this will almost never be needed, and isn't need in this example
-        pipeline_data_params['db'] = '/musc.repo/Data/nickdesisto/3T.v.7T/Databii/res{}.csv'.format(res)
+        pipeline_data_params['db'] = '/musc.repo/Data/nickdesisto/Imagery_DB-updated.csv'
 
 
         ## putting above selections into input node
@@ -60,12 +60,12 @@ def pipe_it(subject,res,fnirt):
             fsl_preproc_params['basedir'] = '/home/nickdesisto/Desktop/nipype_dump'
             fsl_preproc_params['results_base_dir'] = '/home/nickdesisto/Desktop/Nipype_Results....'
         elif this_ip == ichi:
-            fsl_preproc_params['results_base_dir'] = '/musc.repo/Data/nickdesisto/3T.v.7T/pipelined/{}/res{}/{}'.format(subject,res,fnirt_text)
+            fsl_preproc_params['results_base_dir'] = '/musc.repo/Data/nickdesisto/Imagery_preproc/All_TN_runs'.format(subject,res,fnirt_text)
             fsl_preproc_params['basedir'] = '/mnt/nipype_intermediate_dump' # intermediate pipeline dump
         else:
             sys.exit('what computer are you on?')
 
-        fsl_preproc_params['results_container'] = '3T.v.7T' #output dump specific
+        fsl_preproc_params['results_container'] = 'Imagery_RF_test' #output dump specific
         fsl_preproc_params['convert_dicoms'] = False
         #default_params['ref_vol_runList'] = [0]		#grab only the first run for aligning all the other runs to
         fsl_preproc_params['t_size'] = 10000 # just go with it (max possible size).
@@ -92,7 +92,7 @@ def pipe_it(subject,res,fnirt):
         fsl_preproc_params['FNIRT_warpres'] = [(5,5,5)] # Resolution of the warping function. Like, how fine is the warping. Can specify different level for each iteration. *Question*: Why is this list shorter than the one above?
 # Answer : because the tuple represents (x,y,z) 
 
-        fsl_preproc_params['afni_moco'] = True
+        fsl_preproc_params['afni_moco'] = False
 
         check_params = False
         if check_params:
@@ -112,13 +112,15 @@ def pipe_it(subject,res,fnirt):
         pp.base_dir = fsl_preproc_params['basedir']
 
         print main_inputnode.inputs
-        if fsl_preproc_params['nProc'] > 1:
-               pp.run(plugin='MultiProc', plugin_args={'n_procs' : fsl_preproc_params['nProc']})
-        else:
-               pp.run()
+        
+
+     #   if fsl_preproc_params['nProc'] > 1:
+      #         pp.run(plugin='MultiProc', plugin_args={'n_procs' : fsl_preproc_params['nProc']})
+       # else:
+        #       pp.run()
         #Appending Working Volume and Brain Mask file paths to a new CSV saved in results_base_dir
     
-#        add_mask_vols(pp.get_node('inputnode'),fsl_preproc_params,pipeline_data_params['db'])
+        add_mask_vols(pp.get_node('inputnode'),fsl_preproc_params,pipeline_data_params['db'])
     
 #        params_txt(fsl_preproc_params)
         
@@ -145,7 +147,7 @@ def main():
 #            for fnirt in (False,True):
 #                pipe_it(subject,res,fnirt)
 #                
-    pipe_it('s1032','2.4',True)
+    pipe_it('TN','1.6',True)
 
                 
  
