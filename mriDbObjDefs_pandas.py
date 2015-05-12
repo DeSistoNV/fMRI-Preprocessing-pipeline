@@ -31,11 +31,13 @@ class fsl_preproc_inode(IdentityInterface):
             'interp_FLIRT',
             'dof_FLIRT',
             'rigid2D_FLIRT'
-            'convert_dicoms'
-        ])
+            'convert_dicoms',
+            'mags',
+            'phase'
+            ])
         self.Df = 'PlaceHolder for Pandas DataFrame'
-        
-    ## method to display options
+
+    # method to display options
     def check_options(self, kwargs):
         if 'subj' not in kwargs:  # if subject not passed, lists subjects in df and exits
                 print 'Available Subjects are:'
@@ -98,30 +100,33 @@ class fsl_preproc_inode(IdentityInterface):
             
 
         # List of each each session in (subject,sessionID,runType,runID) Format
-        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index))]
+        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index) -1)]
 
         # dropping all runs that do not meet input params
         # instantiating for pipeline
         self.inputs.abs_run_id = [i[3] for i in sessions if i[0] == kwargs['subj'] and i[1] in kwargs['sessList'] and i[2] in kwargs['runType']]
 
         # (runPath,runName,nVols,Sref,Padvol) for all runs in run list
-        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
-        
-
+        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
+	for i in res:
+	    print i
         # attributes for pipeline
         self.inputs.nVols = [int(row[2]) for row in res]
         self.inputs.t_min = [int(row[3]) for row in res]
         self.inputs.padNum = max([int(row[4]) for row in res])
-
-
         # creating file paths
         self.inputs.run_list = [row[0] + '/' + row[1] + '/' for row in res]
         self.inputs.run_list = [self.inputs.run_list[i] + filter(lambda x : '.nii' in x,os.listdir(self.inputs.run_list[i])).pop() for i in xrange(len(self.inputs.run_list))]
         
+  #       if kwargs['do_fugue']:
+		# self.inputs.mags = [Df.mag[i] for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
+		# self.inputs.phase = [Df.phase[i] for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
 
+
+        
         # finally, deal with spatial cropping issues if any of the volumes don't have the same size
         # grab the dimensions for each of the runs
-        dims = [list((Df.matrix_x[i], Df.matrix_y[i], Df.n_slices[i])) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
+        dims = [list((Df.matrix_x[i], Df.matrix_y[i], Df.n_slices[i])) for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
         dims = zip(*dims)
 
         
@@ -142,9 +147,6 @@ class fsl_preproc_inode(IdentityInterface):
                 self.inputs.spatial_crop[keys[index][0]] = [(ff - mn[index]) / 2 for ff in dims[index]]
                 self.inputs.spatial_crop[keys[index][1]] = [mn[index] for ff in dims[index]]
                 
-
-
-
 
 # Added 1.13.15
 # Method to add working volume and brain mask file paths
@@ -184,7 +186,7 @@ def add_mask_vols(inputnode, params_dict, db):
         # adding working volumes to their respective runs
         for vol in vol_dirs:
             Df.ix[Df.runID == int(vol[-10:-7]) , 'working_vol'] = vol
-            
+
         Df.to_csv(params_dict['results_base_dir'] + '/db.csv', index=False, float_format='%.3f')  # re-exporting to a csv of the same name.
 #
 #
@@ -252,36 +254,3 @@ def check_params_used(fsl, csv):
 
     except IOError:
         sys.exit('Execution Stopped: ' + csv + ' does not exist.')
-
-
-# Added 1.19.15
-# Method that grabs all the corrected movies and copies them into a single folder for easier viewing
-#
-# !! Needs params
-def collect_results():
-    import os
-    from shutil import copyfile
-
-    res_dir = ['/home/nick/datDump/' + di for di in list(os.listdir('/home/nick/datDump')) if 'results' in di]
-    res_dir = [di + '/Imagery_RF_test/corrected_movie' for di in res_dir]
-    finals = []
-    for di in res_dir:
-        while '.nitem' not in os.listdir(di)[0]:
-            di += '/' + os.listdir(di)[0]
-        di += '/' + os.listdir(di)[0]
-        finals.append(di)
-    copy_count = 0
-    for f in finals:
-        path = '/home/nick/datDump/corrected_movies/' + f.split('/')[4][7:] + '.nitem.gz'
-        if not os.path.isfile(path):
-            copyfile(f, path)
-            copy_count += 1
-    print str(copy_count) + ' files copied.'
-    
-    
-def params_txt(params):
-        f = open(params['results_base_dir'] + '/parameters.txt','w')
-        for key in params:
-            f.write(" {} : {} \n".format(key,params[key]))
-
-

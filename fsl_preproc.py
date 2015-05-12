@@ -1,6 +1,3 @@
-
-
-
 def create_fsl_preproc_workflow(fsl_preproc_inputnode):
 
   """
@@ -79,7 +76,7 @@ def create_fsl_preproc_workflow(fsl_preproc_inputnode):
   def get_key(mydict, key):
     return mydict[key]
 
- 
+
 
 
  ##================================================create workflows
@@ -115,16 +112,7 @@ def create_fsl_preproc_workflow(fsl_preproc_inputnode):
 			  name = 'moco_vols',
 			  iterfield = 'in_file'
 			  )
-    from nipype.interfaces import afni as afni
-
-    moco_vols = pe.MapNode(interface=afni.Volreg(outputtype = 'NIFTI_GZ') ,
-                name='moco_vols',
-                iterfield = 'in_file'
-                       )
-
-
-
-				    
+					    
  
   ##CONCAT_XFM
   combX = pe.MapNode(interface = fslutils.ConvertXFM(concat_xfm = True),
@@ -316,12 +304,11 @@ def create_fsl_preproc_workflow(fsl_preproc_inputnode):
 			    (flrt, expand_flrt_mats,            [('out_matrix_file', 'mat_list')]),
 			    (inputnode, expand_flrt_mats,       [('nVols', 'nVols')]),
 			    (expand_flrt_mats, combX,           [('out', 'in_file')]),
-            ## NEED TO SOMEHOW CONVERT AFNI XFORMS
-			    (moco_vols, combX,     	       [(('oned_matrix_save', flatten), 'in_file2')]),
+			    (moco_vols, combX,     	       [(('mat_file', flatten), 'in_file2')]),
 			    (combX, appX,                       [('out_file', 'in_matrix_file')])
 		    ])
     else:
-      preProc.connect([	   (moco_vols, appX,		       [(('oned_matrix_save', flatten), 'premat')]),
+      preProc.connect([	   (moco_vols, appX,		       [(('mat_file', flatten), 'premat')]),
 			    (expand_fnrt_mats, appX,            [('out', 'field_file')])
 		    ])
 
