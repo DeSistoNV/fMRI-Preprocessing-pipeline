@@ -254,3 +254,9 @@ def check_params_used(fsl, csv):
 
     except IOError:
         sys.exit('Execution Stopped: ' + csv + ' does not exist.')
+
+
+def params_txt(params):
+        f = open(params['results_base_dir'] + '/parameters.txt', 'w')
+        for key in params:
+            f.write(" {} : {} \n".format(key, params[key]))
