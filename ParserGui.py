@@ -355,8 +355,8 @@ class ParsingTab(QtGui.QWidget):
             self.Inputs['tesla'].setText(parse['Model name'][-2:])
             self.Inputs['run_path'].setText(self.Inputs['main path'].text())
             try:
-                self.Inputs['matrix_x'].setText(parse['Mosaic rows'])
-                self.Inputs['matrix_y'].setText(parse['Mosaic columns'])
+                self.Inputs['matrix_x'].setText(parse['Mosaic columns'])
+                self.Inputs['matrix_y'].setText(parse['Mosaic rows'])
                 self.Inputs['n_slices'].setText(parse['Number of slices'])
             except KeyError:
                 self.Inputs['matrix_x'].setText('')
