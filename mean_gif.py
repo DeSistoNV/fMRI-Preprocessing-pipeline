@@ -112,7 +112,6 @@ class process_files(QtCore.QThread):
 		del iters
 
 		files = [(df.run_path[i]  + '/' + df.run_data_file[i],df.runID[i]) for i in xrange(len(df.index) -1)]
-		print files
 		tmp_files = []
 		print 'copying files...'
 		for f in files:
