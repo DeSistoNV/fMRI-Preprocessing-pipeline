@@ -15,8 +15,11 @@ if list:
 else:
 	fracs = [i / 1000.0 for i in xrange(25,525,10)]
 
+#tmp directory
+ddir = '/mnt/bet/'
+
 # directory of first file
-direct = '/tmp/bet_view_0/'
+direct = ddir + 'bet_view_0/'
 
 # creating main window
 app = QtGui.QApplication(sys.argv)
@@ -80,13 +83,12 @@ def set_pic_frac(value):
 	else:
 		pic.setPixmap(QtGui.QPixmap('{}{}bet.png'.format(direct,fracs[value-1])))
 		label_frac.setText('BET FRAC: {}'.format(fracs[value-1]))
-	print direct
 main_window.connect(slider_frac, QtCore.SIGNAL('valueChanged(int)'), set_pic_frac)
 
 # changes run
 def set_pic_run(value):
 	global direct
-	direct = '/tmp/bet_view_{}/'.format(value)
+	direct = ddir + 'bet_view_{}/'.format(value)
 	set_pic_frac(slider_frac.value())
 	label_run.setText('runID : {}'.format(value))
 main_window.connect(slider_run, QtCore.SIGNAL('valueChanged(int)'), set_pic_run)
@@ -111,11 +113,11 @@ class process_files(QtCore.QThread):
 		self.count.setMaximum(iters)
 		del iters
 
-		files = [(df.run_path[i]  + '/' + df.run_data_file[i],df.runID[i]) for i in xrange(len(df.index) -1)]
+		files = [(df.run_path[i]  + '/' + df.run_data_file[i],i) for i in xrange(len(df.index) -1)]
 		tmp_files = []
 		print 'copying files...'
 		for f in files:
-			tmp_path = '/tmp/bet_view_{}/'.format(f[1])
+			tmp_path = ddir + 'bet_view_{}/'.format(f[1])
 			if not os.path.exists(tmp_path):
 				os.makedirs(tmp_path)
 			ld = [i for i in os.listdir(f[0]) if '.nii' in i].pop()
@@ -127,7 +129,7 @@ class process_files(QtCore.QThread):
 			step += 1
 			self.count.setValue(step)
 		for f in tmp_files:
-			this_path = '/tmp/bet_view_{}/'.format(f[1])
+			this_path = ddir + 'bet_view_{}/'.format(f[1])
 			this_mean = this_path + '0.nii.gz'
 			cmd_mean = 'fslmaths {} -Tmean {}'.format(f[0],this_mean)
 	 		print 'running : {}'.format(cmd_mean)

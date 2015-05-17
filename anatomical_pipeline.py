@@ -14,7 +14,7 @@ import nipype.interfaces.io as nio      # for data sink node
 import os
 
 
-
+from nipype.interfaces.freesurfer import BBRegister
 
 from anatomical_dbObj import fsl_preproc_inode
 
@@ -74,7 +74,7 @@ preProc = pe.Workflow(name='fsl_preproc')
 mag = '/musc.repo/Data/nickdesisto/3T.v.7T/Converted/Olman_s1r1/1_015_gre_field_mapping_2iso_20140912/Olman_s1r1_20140912_001_015_gre_field_mapping_2iso.nii'
 phase = '/musc.repo/Data/nickdesisto/3T.v.7T/Converted/Olman_s1r1/1_016_gre_field_mapping_2iso_20140912/Olman_s1r1_20140912_001_016_gre_field_mapping_2iso.nii'
 
-bet_frac = .1       # Intensity Threshold
+bet_frac = .2      # Intensity Threshold
 bet_gradient = .0   # vertical gradient
 ## FUGUE
 dwell = .00032      # EPI dwell time (bandwidth^-1)
@@ -84,75 +84,61 @@ inputnode = pe.Node(interface = main_inputnode, name = 'inputnode')
 
 print inputnode.inputs
 
-						
-# BET For Field map mag image
-BET_Field_Map = pe.Node(interface=fsl.BET(mask = True, robust = True,frac=bet_frac,vertical_gradient=bet_gradient,
+bet_map = pe.Node(interface=fsl.BET(mask = True, robust = True,frac=bet_frac,vertical_gradient=bet_gradient,
     in_file = mag),
-    name='BET_Field_Map')
+    name='bet_map')
 
-##skull stripping 
 bet = pe.MapNode(interface = fsl.BET(functional=True, frac = bet_frac, mask=True),
 		name = 'bet',
 		iterfield = 'in_file')
 
-## preparing field map
-prepare_field_map = pe.Node(interface=fsl.PrepareFieldmap(delta_TE = 1.02, in_phase = phase),
-    name='prepare_field_map')
+prep_map = pe.Node(interface=fsl.PrepareFieldmap(delta_TE = 1.02, in_phase = phase),
+    name='prep_map')
 			    
-## applying fieldmap
 fugue = pe.MapNode(interface=fsl.FUGUE(dwell_time=dwell,unwarp_direction = unwarp_dir),
-    iterfield=['in_file'],
-    name = 'fugue')
-
+    iterfield= 'in_file',
+    name     = 'fugue')
 
 datasink = pe.Node(interface = nio.DataSink(parameterization = True),
     name = 'datasink')
 
-##skull stripping
 volreg = pe.MapNode(interface=afni.Volreg(verbose = True,outputtype = 'NIFTI_GZ'),
     name='moco',
-    iterfield=['in_file'])
+    iterfield = ['in_file'])
 
+bbreg = pe.MapNode(interface = BBRegister(subject_id='s1000', init='fsl', contrast_type='t1',out_fsl_file = True),
+    name = 'bbreg',
+    iterfield = ['source_file'])
+
+appX = pe.MapNode(interface = fsl.ApplyXfm(apply_xfm=True,interp='spline'),
+    name = 'appX',
+    iterfield = ['in_file','in_matrix_file'])
 
 preProc.base_dir = '/mnt/ana_pipe_out'  # this dir
 
-# extract the field map mag brain and let fsl handle preparing it 
-preProc.connect(BET_Field_Map, 'mask_file',prepare_field_map,'in_magnitude')
-
-
-preProc.connect([(prepare_field_map,fugue, [('out_fieldmap','fmap_in_file')]),  ## send the field map to fugue
-               (inputnode,bet,[('run_list','in_file')]),    ## send the epis to bet
-                 (bet,fugue,[('out_file','in_file')])       # send the extracted epis to fugue
-                ])
-
-                        
-
-
-preProc.connect([   (fugue, volreg, [('unwarped_file', 'in_file')])    ## send fugued epis to moco/reg
-      ])
-
-
-
-preProc.connect([    
-          (bet, uncor_mm,   [('out_file', 'mmInputnode.run_list')]),            
-          (volreg, cor_mm,      [('out_file', 'mmInputnode.run_list')]),
-                (uncor_mm, datasink,   [('merge.merged_file', 'uncorrected_movie')]),     ##send everything to data sink
-          (cor_mm, datasink,     [('merge.merged_file', 'corrected_movie')])
-      ])
-    
-    
+def grab(l):
+    return l[0]
 
 
 preProc.connect([ 
-                 (volreg,datasink,[('out_file','final_aligned')])
-                   ])
-
-
-
+          (bet_map   , prep_map, [('mask_file'        , 'in_magnitude'         )]),
+          (prep_map  , fugue,    [('out_fieldmap'     , 'fmap_in_file'         )]),  ## send the field map to fugue
+          (inputnode , bet,      [('run_list'         , 'in_file'              )]),    ## send the epis to bet
+          (bet       , fugue,    [('out_file'         , 'in_file'              )]),
+          (fugue     , volreg,   [('unwarped_file'    , 'in_file'              )]),  
+          (bet       , uncor_mm, [('out_file'         , 'mmInputnode.run_list' )]),            
+          (volreg    , bbreg,    [('out_file'         , 'source_file'          )]),
+          (bbreg     , appX,     [('out_fsl_file'     , 'in_matrix_file'       )]),
+          (volreg    , appX,     [('out_file'         , 'in_file'              )]),
+          (bet       , appX,     [(('out_file',grab ) , 'reference'            )]),
+          (appX      , cor_mm,   [('out_file'         , 'mmInputnode.run_list' )]),
+          (uncor_mm  , datasink, [('merge.merged_file', 'uncorrected_movie'    )]),     ##send everything to data sink
+          (cor_mm    , datasink, [('merge.merged_file', 'corrected_movie'      )]),
+          (appX      , datasink, [('out_file'         , 'final_aligned'        )])
+      ])
 
 nProcs = 8
 
-preProc.write_graph(simple_form = False)
 preProc.write_graph(simple_form = True)
 if nProcs > 1:
               preProc.run(plugin='MultiProc', plugin_args={'n_procs' : nProcs})
