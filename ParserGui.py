@@ -838,7 +838,7 @@ class MainWindow(QtGui.QTabWidget):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        pipe = True
+        pipe = False
         if pipe:
             self.pipe_tab = PipeTab(self)
             self.addTab(self.pipe_tab,"Nipype FSL Preprocessing PipeLine")
