@@ -11,6 +11,8 @@ def pipe_it(subject, vox_res, fnirt, experiment):
     main_inputnode = fsl_preproc_inode()  # in mriDbObjDefs
     fnirt_text = "fnirt" if fnirt else "nofnirt"
 
+    CHECK_SOCKET = True
+
     pipeline_data_params = dict()  # Select only...
     pipeline_data_params['subject'] = subject
     pipeline_data_params['experiment'] = experiment
@@ -38,26 +40,30 @@ def pipe_it(subject, vox_res, fnirt, experiment):
         )
     fsl_preproc_params = dict()
 
-    host_name = socket.gethostname()
-    # basedir is the intermediary dump
-    # results_base_dir is where the final aligned data goes from the datasink node
-    if host_name == 'san':
-        fsl_preproc_params['basedir'] = '/home/nickdesisto/Desktop/nipype_dump'
-        base = '/home/nickdesisto/ichi/musc.repo/Data/nickdesisto/Imagery_preproc/testing/no_fnirt/{}_{}'
-        fsl_preproc_params['results_base_dir'] = base.format(subject, vox_res, fnirt_text)
-    elif host_name == 'Ichi':
-        results = '/musc.repo/Data/nickdesisto/Imagery_preproc/testing/switched_vals/no_fnirt/{}_{}'
-        fsl_preproc_params['results_base_dir'] = results.format(subject, vox_res, fnirt_text)
-        base = '/mnt/nipype_intermediate_dump/{}/{}_{}_{}'
-        fsl_preproc_params['basedir'] = base.format(experiment, subject, vox_res, fnirt_text)
-    else:
-        sys.exit('what computer are you on?')
+    if CHECK_SOCKET:
+        host_name = socket.gethostname()
+        # basedir is the intermediary dump
+        # results_base_dir is where the final aligned data goes from the datasink node
+        if host_name == 'san':
+            fsl_preproc_params['basedir'] = '/home/nickdesisto/Desktop/nipype_dump'
+            base = '/home/nickdesisto/ichi/musc.repo/Data/nickdesisto/Imagery_preproc/testing/no_fnirt/{}_{}'
+            fsl_preproc_params['results_base_dir'] = base.format(subject, vox_res, fnirt_text)
+        elif host_name == 'Ichi':
+            results = '/mnt/3T.v.7T_pipe/testing/changing_merge/{}/{}_{}'
+            fsl_preproc_params['results_base_dir'] = results.format(subject, vox_res, fnirt_text)
+            base = '/mnt/nipype_intermediate_dump/{}/{}_{}_{}'
+            fsl_preproc_params['basedir'] = base.format(experiment, subject, vox_res, fnirt_text)
+        else:
+            sys.exit('What computer are you on?')
+    else: 
+        fsl_preproc_params['basedir'] = '/home/nick/nipype_intermediate_dump/'
+        fsl_preproc_params['results_base_dir'] = '/home/nick/results/'
 
     # default_params['ref_vol_runList'] = [0]       #grab only the first run for aligning all the other runs to
     fsl_preproc_params['results_container'] = 'Imagery_RF_test' if experiment == 'imagery.rf' else '3T.v.7T'
     fsl_preproc_params['convert_dicoms'] = False
     fsl_preproc_params['t_size'] = 10000  # just go with it (max possible size).
-    fsl_preproc_params['bet_frac'] = 0.35  # BRAIN EXTRACTION TOOL THRESHOLD
+    fsl_preproc_params['bet_frac'] = 0.08  # BRAIN EXTRACTION TOOL THRESHOLD
     # motion correction
     fsl_preproc_params['ref_run'] = []  # reference volume all others will be referenced
     fsl_preproc_params['moco_only'] = False  # if true, all FLIRT AND FNIRT is ignored
@@ -67,7 +73,7 @@ def pipe_it(subject, vox_res, fnirt, experiment):
     fsl_preproc_params['dof_FLIRT'] = 6  # degrees of freedom (MAX : 12)
     fsl_preproc_params['rigid2D_FLIRT'] = False  # if true, restrict linear reg to rigid body transformations and ignore dof
     # nonlinear registration
-    fsl_preproc_params['do_FNIRT'] = False
+    fsl_preproc_params['do_FNIRT'] = fnirt
     fsl_preproc_params['searchr_x'] = []  # params for linear reg exposed (select the angular range over which the initial optimisation search stage is performed.)
     fsl_preproc_params['searchr_y'] = []  # find out what these guys do
     fsl_preproc_params['searchr_z'] = []
@@ -75,7 +81,7 @@ def pipe_it(subject, vox_res, fnirt, experiment):
     fsl_preproc_params['FNIRT_subsamp'] = [[4, 2, 1, 1]]  # FNIRT runs a coarse-to-fine algorithm. This is a list specifying the downsampling factor on each iteration.
     fsl_preproc_params['FNIRT_warpres'] = [(5, 5, 5)]  # Resolution of the warping function. Like, how fine is the warping. Can specify different level for each iteration. *Question*: Why is this list shorter than the one above?
     # run settings
-    fsl_preproc_params['nProc'] = 8  # number of CPUS
+    fsl_preproc_params['nProc'] = 1 # number of CPUS
 
     check_params = False
     if check_params:
@@ -117,12 +123,12 @@ def main():
     # pipe_it(subject (str), vox_res (str), fnirt (bool), experiment(str) ):
     host_name = socket.gethostname()
     if host_name == 'Ichi':
-        pipe_it('s1000', '1', False, '3T.v.7T')
+        #      (Subject, VoxelRes, FNIRT?, expID)
+        pipe_it('s1000', '3', False, '3T.v.7T')
+
     if host_name == 'san':
         pass
 
-    pipeline_data_params['experiment'] = 'imagery.rf'
-    pipeline_data_params['experiment'] = '3T.v.7T'
 
 
 main()

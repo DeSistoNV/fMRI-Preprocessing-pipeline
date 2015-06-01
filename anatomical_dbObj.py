@@ -100,14 +100,14 @@ class fsl_preproc_inode(IdentityInterface):
             
 
         # List of each each session in (subject,sessionID,runType,runID) Format
-        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index) -1)]
+        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index))]
 
         # dropping all runs that do not meet input params
         # instantiating for pipeline
         self.inputs.abs_run_id = [i[3] for i in sessions]
 
         # (runPath,runName,nVols,Sref,Padvol) for all runs in run list
-        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
+        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
 	for i in res:
 	    print i
         # attributes for pipeline

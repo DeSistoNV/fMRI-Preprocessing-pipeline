@@ -100,14 +100,14 @@ class fsl_preproc_inode(IdentityInterface):
             
 
         # List of each each session in (subject,sessionID,runType,runID) Format
-        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index) -1)]
+        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index))]
 
         # dropping all runs that do not meet input params
         # instantiating for pipeline
         self.inputs.abs_run_id = [i[3] for i in sessions if i[0] == kwargs['subj'] and i[1] in kwargs['sessList'] and i[2] in kwargs['runType']]
 
         # (runPath,runName,nVols,Sref,Padvol) for all runs in run list
-        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
+        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
 	for i in res:
 	    print i
         # attributes for pipeline
@@ -126,7 +126,7 @@ class fsl_preproc_inode(IdentityInterface):
         
         # finally, deal with spatial cropping issues if any of the volumes don't have the same size
         # grab the dimensions for each of the runs
-        dims = [list((Df.matrix_x[i], Df.matrix_y[i], Df.n_slices[i])) for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
+        dims = [list((Df.matrix_x[i], Df.matrix_y[i], Df.n_slices[i])) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
         dims = zip(*dims)
 
         
@@ -180,10 +180,12 @@ def add_mask_vols(inputnode, params_dict, db):
         working_vols = results + '/final_aligned'
         while '_work' not in os.listdir(working_vols).pop():
             working_vols += '/' + os.listdir(working_vols).pop()
-        vol_dirs = [working_vols + '/' + vol for vol in os.listdir(working_vols)]
+        vol_dirs = [working_vols + '/' + vol for vol in os.listdir(working_vols) if vol[-3:] == '.gz']
         vol_dirs = [vol + '/' + os.listdir(vol)[0] for vol in vol_dirs]
-            
+
         # adding working volumes to their respective runs
+        for vol in vol_dirs:
+            print vol
         for vol in vol_dirs:
             Df.ix[Df.runID == int(vol[-10:-7]) , 'working_vol'] = vol
 
