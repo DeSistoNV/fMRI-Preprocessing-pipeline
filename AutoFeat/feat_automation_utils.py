@@ -45,9 +45,10 @@ def build_runs(df,inp):
         files['feat_files(1)'] += [f for f in listdir(files['feat_files(1)']) if '.nii' in f][0]
         files['unwarp_files(1)'] =  df.field_map_phase[i]
         files['unwarp_files_mag(1)'] = df.field_map_mag[i]
+
         files['highres_files(1)'] = df.anatomical[i]
         fmri['dwell'] = df.dwell[i] # EPI dwell time (ms)
-        fmri['te'] = df.TE[i] # EPI TE (ms)
+        fmri['te'] = 44 # EPI TE (ms)
         r.append((fmri,files))
     return r
 
@@ -80,13 +81,25 @@ def save_fsf(out,fsfs):
     return p
 
 # runs feat on all the fsfs
-def run_feat_all(fs):
-    for i, fsf in enumerate(fs):
-        print 'run {}/{} running'.format(i+1,len(fs))
+def run_feat_all(dataframe):
+    for i, fsf in enumerate(dataframe.fsf_files):
+        print fsf
+        print 'run {}/{} running'.format(i+1,len(dataframe.fsf_files))
         output = subprocess.check_output(['feat',fsf])
         print output
-        print 'run {}/{} complete'.format(i+1,len(fs))
+        print 'run {}/{} complete'.format(i+1,len(dataframe.fsf_files))
 
+
+# def prepare_field_maps(dataframe):
+#     for i in dataframe.index:
+#         prepare_location = '/'.join(dataframe.field_map_mag[i].split('/')[:-1]) + '/prepped_map.nii'
+#         fpf_cmd = 'fsl_prepare_fieldmap SIEMENS {} {} {} {}'.format(dataframe.field_map_phase[i],dataframe.field_map_mag[i],prepare_location,dataframe.dwell[i])
+#         print fpf_cmd + '\n'
+#         subprocess.check_output([fpf_cmd])
+#         dataframe.field_map_mag[i] = prepare_location
+#     return dataframe
+
+# fsl_prepare_fieldmap <scanner> <phase_image> <magnitude_image> <out_image> <deltaTE (in ms)> [--nocheck]
 
 
 #### TESTING VARS #####
@@ -94,7 +107,6 @@ def run_feat_all(fs):
 # df['field_map_phase'] ='/home/nick/Desktop/1_016_gre_field_mapping_1x1x2_20111013/naselaris_ca_20111013_001_016_gre_field_mapping_1x1x2.nii'
 # df['anatomical']= '/home/nick/Desktop/CO_s1000_T1.nii'
 # df['dwell'] = .3
-# df['TE'] = 22.8
 # df['run_path'] = '/home/nick/ichi/mnt/vison_conv/naselaris_ca'
 
 # df
