@@ -5,7 +5,6 @@ import os
 import sys
 import pandas as pd
 
-
 class fsl_preproc_inode(IdentityInterface):
     # this __init__ definition uses a trick from stack overflow to initialize a super class
     # creates the input node fields needed to start an fsl_preproc pipeline
@@ -32,10 +31,13 @@ class fsl_preproc_inode(IdentityInterface):
             'dof_FLIRT',
             'rigid2D_FLIRT'
             'convert_dicoms',
-            'mags',
-            'phase'
+            'mags',  # Field map magnitude images
+            'phase', # Field map phase images
+            'delta_TE',
+            'mag_frac',
+            'do_fugue'
             ])
-        self.Df = 'PlaceHolder for Pandas DataFrame'
+        self.DF = 'PlaceHolder for Pandas DataFrame'
 
     # method to display options
     def check_options(self, kwargs):
@@ -68,7 +70,7 @@ class fsl_preproc_inode(IdentityInterface):
                 Df = pd.read_csv(kwargs['db'],index_col = False)
         else:
             sys.exit('Need a pickled pandas DataFrame  or CSV as db arg')
-        return Df
+        self.DF = Df
     def panda_fields(self, **kwargs):
 
         """
@@ -87,54 +89,37 @@ class fsl_preproc_inode(IdentityInterface):
         """
         
         ## opening database
-        Df = self.DF = self.open_db(kwargs)
-        
+        self.open_db(kwargs)
         ## checks subject and expID 
         self.check_options(kwargs)
         
-        # if subject and expid aren't passed, get all
-        if 'runType' not in kwargs:  # if no runType is passed, makes a list of all run types
-            kwargs['runType'] = [t for t in set(Df.runType)]
-        if len(kwargs['sessList']) == 0:
-            kwargs['sessList'] = [i for i in set(Df.sessionID)]
-            
-
-        # List of each each session in (subject,sessionID,runType,runID) Format
-        sessions = [(Df.subject[i], Df.sessionID[i],Df.runType[i],Df.runID[i]) for i in xrange(len(Df.index))]
-
-        # dropping all runs that do not meet input params
-        # instantiating for pipeline
-        self.inputs.abs_run_id = [i[3] for i in sessions if i[0] == kwargs['subj'] and i[1] in kwargs['sessList'] and i[2] in kwargs['runType']]
-
-        # (runPath,runName,nVols,Sref,Padvol) for all runs in run list
-        res = [(Df.run_path[i],Df.run_data_file[i],Df.nvols[i],Df.siemensRef[i],Df.padVol[i]) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
-	for i in res:
-	    print i
-        # attributes for pipeline
-        self.inputs.nVols = [int(row[2]) for row in res]
-        self.inputs.t_min = [int(row[3]) for row in res]
-        self.inputs.padNum = max([int(row[4]) for row in res])
-        # creating file paths
-        self.inputs.run_list = [row[0] + '/' + row[1] + '/' for row in res]
-        self.inputs.run_list = [self.inputs.run_list[i] + filter(lambda x : '.nii' in x,os.listdir(self.inputs.run_list[i])).pop() for i in xrange(len(self.inputs.run_list))]
+        # if runtype or sess_list aren't passed,
+        if not kwargs['run_type']:
+            kwargs['run_type'] = self.DF.run_type.unique()
+        if not kwargs['sess_list']:
+            kwargs['sess_list'] = self.DF.sessionID.unique()
         
-  #       if kwargs['do_fugue']:
-		# self.inputs.mags = [Df.mag[i] for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
-		# self.inputs.phase = [Df.phase[i] for i in xrange(len(Df.index) -1) if Df.runID[i] in self.inputs.abs_run_id]
+        working_DF = self.DF.copy()[self.DF.subject.isin(kwargs['subj']) & self.DF.sessionID.isin(kwargs['sess_list']) & self.DF.run_type.isin(kwargs['run_type']) & self.DF.experiment.isin(kwargs['expID']) ]
+        self.inputs.abs_run_id = list(working_DF.runID)
+        self.inputs.nVols = list(working_DF.nvols)
+        self.inputs.t_min  = list(working_DF.siemensRef)
+        self.inputs.padNum = max(list(self.DF.padVol))
 
+        path_tuples = zip(working_DF.run_path,working_DF.run_data_file)
+        paths = map(lambda x,:os.path.join(*x),path_tuples)
+        self.inputs.run_list = [os.path.join(path, filter(lambda x : '.nii' in x,os.listdir(path)).pop()) for path in paths]
 
-        
+        self.inputs.mags = list(working_DF.mag)
+        self.inputs.phase = list(working_DF.phase)
+
         # finally, deal with spatial cropping issues if any of the volumes don't have the same size
         # grab the dimensions for each of the runs
-        dims = [list((Df.matrix_x[i], Df.matrix_y[i], Df.n_slices[i])) for i in xrange(len(Df.index)) if Df.runID[i] in self.inputs.abs_run_id]
-        dims = zip(*dims)
+        dims = zip(*[(row.matrix_x,row.matrix_y,row.n_slices) for _,row in working_DF.iterrows()])
 
-        
 #       pipeline_data_params['crop_this'] = ['med', 'med', 'min']  ##note that this will almost never be needed, and isn't need in this example
         mn = map(min, dims)
         self.inputs.spatial_crop = {}
 
-        
         keys = [('x_min', 'x_size'), ('y_min', 'y_size'),('z_min', 'z_size')]  # these keys refer to input args. in fslroi. kinda hacky.
         for index, item in enumerate(kwargs['cropRule']):
             if item == 'min':  # from left to right
@@ -146,7 +131,7 @@ class fsl_preproc_inode(IdentityInterface):
             elif item == 'med':  # from the center out
                 self.inputs.spatial_crop[keys[index][0]] = [(ff - mn[index]) / 2 for ff in dims[index]]
                 self.inputs.spatial_crop[keys[index][1]] = [mn[index] for ff in dims[index]]
-                
+
 
 # Added 1.13.15
 # Method to add working volume and brain mask file paths
@@ -160,7 +145,7 @@ def add_mask_vols(inputnode, params_dict, db):
 #        if not os.path.isdir(inputnode.inputs.basedir):  # check if the results_base_directory exists
 #            raise IOError()
 
-        Df = pd.read_csv(db,index_col=False)  # opening the csv file
+        self.DF = pd.read_csv(db,index_col=False)  # opening the csv file
 
         # building top path for files
         container = params_dict['results_container']
@@ -174,7 +159,7 @@ def add_mask_vols(inputnode, params_dict, db):
 
         # adding brain mask for all the runs in the run list
         for run in inputnode.inputs.abs_run_id:
-            Df.ix[Df.runID == run, 'brain_mask'] = brain_mask
+            self.DF.ix[self.DF.runID == run, 'brain_mask'] = brain_mask
 
         # building working volume paths
         working_vols = results + '/final_aligned'
@@ -184,12 +169,11 @@ def add_mask_vols(inputnode, params_dict, db):
         vol_dirs = [vol + '/' + os.listdir(vol)[0] for vol in vol_dirs]
 
         # adding working volumes to their respective runs
+   
         for vol in vol_dirs:
-            print vol
-        for vol in vol_dirs:
-            Df.ix[Df.runID == int(vol[-10:-7]) , 'working_vol'] = vol
+            self.DF.ix[self.DF.runID == int(vol[-10:-7]) , 'working_vol'] = vol
 
-        Df.to_csv(params_dict['results_base_dir'] + '/db.csv', index=False, float_format='%.3f')  # re-exporting to a csv of the same name.
+        self.DF.to_csv(params_dict['results_base_dir'] + '/db.csv', index=False, float_format='%.3f')  # re-exporting to a csv of the same name.
 #
 #
 #    except IOError:
@@ -262,3 +246,4 @@ def params_txt(params):
         f = open(params['results_base_dir'] + '/parameters.txt', 'w')
         for key in params:
             f.write(" {} : {} \n".format(key, params[key]))
+
