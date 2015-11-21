@@ -6,7 +6,7 @@ import nipype.interfaces.fsl as fsl          # fsl
 import nipype.pipeline.engine as pe          # pypeline engine
 import nipype.interfaces.io as nio			 # for data grabbing and sinking
 import nipype.interfaces.utility as util	 # for defining input node
-import nipype.interfaces.fsl.utils as fslutils
+import nipype.interfaces.fsl.maths as fslmaths
 
 ##=====define the pipeline engine
 preProc = pe.Workflow(name='meanmerge')
@@ -20,8 +20,8 @@ inputnode = pe.Node(interface=util.IdentityInterface(fields=['run_list']),
 
 
 ##Take the mean of each run
-mean_out = pe.MapNode(interface=fslutils.ImageMeants(),
-		    name = 'fsl_mean_ts',
+mean_out = pe.MapNode(interface=fslmaths.MeanImage(),
+		    name = 'mean_image',
 		    iterfield = ['in_file']
 		    )
 		       				 
