@@ -3,7 +3,6 @@ from mriDbObjDefs_pandas import *
 import time
 import socket
 import sys
-# from datetime import datetime
 
 
 def pipe_it(subject, vox_res, fnirt, experiment):
@@ -37,9 +36,9 @@ def pipe_it(subject, vox_res, fnirt, experiment):
         sess_list=pipeline_data_params['sess_list'],
         cropRule = pipeline_data_params['crop_this'],
         db = pipeline_data_params['db'],
-        run_type = pipeline_data_params['run_type']
-        # vox_res = pipeline_data_params['vox_res'],
-        # do_fugue = pipeline_data_params['do_fugue']
+        run_type = pipeline_data_params['run_type'],
+        TEST = False # if True, we are in test mode ; only pass 3 runs in
+
         )
     fsl_preproc_params = dict()
 
@@ -80,20 +79,20 @@ def pipe_it(subject, vox_res, fnirt, experiment):
     fsl_preproc_params['rigid2D_FLIRT'] = False  # if true, restrict linear reg to rigid body transformations and ignore dof
     # nonlinear registration
     fsl_preproc_params['do_FNIRT'] = True
-    fsl_preproc_params['searchr_x'] = []  # params for linear reg exposed (select the angular range over which the initial optimisation search stage is performed.)
-    fsl_preproc_params['searchr_y'] = []  # find out what these guys do
-    fsl_preproc_params['searchr_z'] = []
     fsl_preproc_params['interp_FNIRT'] = 'spline'  # what kind of interpolation (sinc,trilinear,nearestneighbour or spline)
     fsl_preproc_params['FNIRT_subsamp'] = [[4, 2, 1, 1]]  # FNIRT runs a coarse-to-fine algorithm. This is a list specifying the downsampling factor on each iteration.
     fsl_preproc_params['FNIRT_warpres'] = [(5, 5, 5)]  # Resolution of the warping function. Like, how fine is the warping. Can specify different level for each iteration. *Question*: Why is this list shorter than the one above?
     # run settings
-    fsl_preproc_params['nProc'] = 1 # number of CPUS
 
-    fsl_preproc_params['delta_TE'] = 1.02
-    fsl_preproc_params[ 'mag_frac'] = .5
+
+
     fsl_preproc_params['do_fugue'] = True
+    fsl_preproc_params['delta_TE'] = 1.02 # FOR FUGUE
+    fsl_preproc_params['dwell_time'] = .00032  # FOR FUGUE
+    fsl_preproc_params['mag_frac'] = .5 # BET Fractional Intensity Threshold for the Field Map Magnitude Image
+    fsl_preproc_params['unwarp_direction'] = 'z' # FOR FUGUE
 
-
+    fsl_preproc_params['nProc'] = 6 # number of CPUS
 
 
     check_params = False
@@ -110,26 +109,28 @@ def pipe_it(subject, vox_res, fnirt, experiment):
     # and, for reasons I can't remember, establish the base directory as an attribute of the workflow
     pp.base_dir = fsl_preproc_params['basedir']
     # print inputs after being processed by mriDbObjDefs for sanity check
-    # print main_inputnode.inputs
+    print main_inputnode.inputs
     # run the pipeline
+
+
     if fsl_preproc_params['nProc'] > 1:
         pp.run(plugin='MultiProc', plugin_args={'n_procs': fsl_preproc_params['nProc']})
     else:
         pp.run()
 
-    # Appending Working Volume and Brain Mask file paths to a new CSV saved in results_base_dir
-    # add_mask_vols(pp.get_node('inputnode'), fsl_preproc_params, pipeline_data_params['db'])
-    # outputs a text file of parameters used
-    #params_txt(fsl_preproc_params)
-    # option to append a parameters csv to keep track when doing iterative optimization
-    param_csv = False
+    # # Appending Working Volume and Brain Mask file paths to a new CSV saved in results_base_dir
+    # # add_mask_vols(pp.get_node('inputnode'), fsl_preproc_params, pipeline_data_params['db'])
+    # # outputs a text file of parameters used
+    # #params_txt(fsl_preproc_params)
+    # # option to append a parameters csv to keep track when doing iterative optimization
+    # param_csv = False
 
-    if param_csv:
-        # Appending the parameters used in this run to a csv to track them
-        append_param_csv(fsl_preproc_params, '/home/nick/datDump/result_params.csv')
+    # if param_csv:
+    #     # Appending the parameters used in this run to a csv to track them
+    #     append_param_csv(fsl_preproc_params, '/home/nick/datDump/result_params.csv')
 
-    last_words = "Pipeline ran in {} hours on {} items"
-    print last_words.format(time.strftime("%H:%M:%S", time.gmtime(time.time() - start)), len(main_inputnode.inputs.abs_run_id))
+    # last_words = "Pipeline ran in {} hours on {} items"
+    # print last_words.format(time.strftime("%H:%M:%S", time.gmtime(time.time() - start)), len(main_inputnode.inputs.abs_run_id))
 
 
 def main():
@@ -150,7 +151,7 @@ def main():
     if host_name == 'san':
         pass
 
-    pipe_it('s1000','3',False, '3T.v.7T')
+    #pipe_it('s1000','3',False, '3T.v.7T')
 
 
 

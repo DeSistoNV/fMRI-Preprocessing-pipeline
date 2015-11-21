@@ -23,9 +23,6 @@ class fsl_preproc_inode(IdentityInterface):
             'spatial_crop',
             'abs_run_id',
             'moco_only',
-            'searchr_x',
-            'searchr_y',
-            'searchr_z',
             'interp_FNIRT',
             'interp_FLIRT',
             'dof_FLIRT',
@@ -35,6 +32,8 @@ class fsl_preproc_inode(IdentityInterface):
             'phase', # Field map phase images
             'delta_TE',
             'mag_frac',
+            'dwell_time',
+            'unwarp_direction',
             'do_fugue'
             ])
         self.DF = 'PlaceHolder for Pandas DataFrame'
@@ -100,6 +99,8 @@ class fsl_preproc_inode(IdentityInterface):
             kwargs['sess_list'] = self.DF.sessionID.unique()
         
         working_DF = self.DF.copy()[self.DF.subject.isin(kwargs['subj']) & self.DF.sessionID.isin(kwargs['sess_list']) & self.DF.run_type.isin(kwargs['run_type']) & self.DF.experiment.isin(kwargs['expID']) ]
+        if kwargs['TEST']:
+            working_DF = working_DF[:3]
         self.inputs.abs_run_id = list(working_DF.runID)
         self.inputs.nVols = list(working_DF.nvols)
         self.inputs.t_min  = list(working_DF.siemensRef)
