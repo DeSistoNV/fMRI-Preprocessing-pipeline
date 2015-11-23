@@ -246,7 +246,7 @@ def create_fsl_preproc_workflow(fsl_preproc_inputnode):
 
 	if not inputnode.inputs.moco_only:
         # split vols and send to applyXform (or applyWarp if we're doing fnrt)
-		preProc.connect(moco_vols, 'out_file', splt, 'in_file')
+		preProc.connect(fuguepipe, 'fugue.unwarped_file', splt, 'in_file')
 		preProc.connect(splt, ('out_files',flatten), appX, 'in_file')
 
         # determine the reference run file and distribute to flrt and appX
