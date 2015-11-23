@@ -6,8 +6,15 @@ import nipype.interfaces.fsl as fsl          # fsl
 import nipype.pipeline.engine as pe          # pypeline engine
 import nipype.interfaces.io as nio			 # for data grabbing and sinking
 import nipype.interfaces.utility as util	 # for defining input node
-import nipype.interfaces.fsl.maths as fslmaths
+import nipype.interfaces.fsl.utils as fslutils
 
+def first_and_last(l):
+	o = []
+	for i in l:
+		o.append(i.pop())
+		o.append(i.pop(0))
+	print o	
+	return o 
 ##=====define the pipeline engine
 preProc = pe.Workflow(name='meanmerge')
 
@@ -19,9 +26,9 @@ inputnode = pe.Node(interface=util.IdentityInterface(fields=['run_list']),
 
 
 
-##Take the mean of each run
-mean_out = pe.MapNode(interface=fslmaths.MeanImage(),
-		    name = 'mean_image',
+##split the 4D volumes up into individual 3D files
+split_out = pe.MapNode(interface = fslutils.Split(dimension = 't'),
+		    name = 'split_out',
 		    iterfield = ['in_file']
 		    )
 		       				 
@@ -33,6 +40,6 @@ merge = pe.Node(interface = fsl.Merge(dimension='t'),
 ##======connections
 
 
-preProc.connect([( inputnode, mean_out,  [ ( 'run_list'                   , 'in_file'  )]),
-			     ( mean_out,     merge,  [ ( 'out_file' ,'in_files')])
+preProc.connect([( inputnode, split_out,  [ ( 'run_list'                   , 'in_file'  )]),
+			     ( split_out,     merge,  [ ( ('out_files', first_and_last) ,'in_files')])
  		    	])
