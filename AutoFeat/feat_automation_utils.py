@@ -48,7 +48,9 @@ def build_runs(df,inp):
 
         files['highres_files(1)'] = df.anatomical[i]
         fmri['dwell'] = df.dwell[i] # EPI dwell time (ms)
-        fmri['te'] = 44 # EPI TE (ms)
+        fmri['te'] = df.TE[i]# EPI TE (ms)
+        fmri['st'] = 4
+        frmi['st_file'] = inp['st_file']
         r.append((fmri,files))
     return r
 
