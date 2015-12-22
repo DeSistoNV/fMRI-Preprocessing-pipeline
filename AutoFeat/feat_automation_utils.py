@@ -14,21 +14,21 @@ def get_nvols(file_path):
 # load a database, subject wise
 def load_db(csv,subj):
     ret = pd.read_csv(csv)
-    return ret[ret.subject == 'CO']
+    return ret[ret.subject == subj]
 
 # load in template fsf file
 def get_template():
     with open('template.fsf') as f:
         cmds = [line[:-1] for line in f if line[0] != '#' and line[:-1] != '']
     return cmds
-    
+
 
 def build_runs(df,inp):
     r = []
     for i in df.index:
         fmri = dict()
         fmri['input'] = df.run_data_file[i]
-        fmri['outputdir'] = '{}/{}'.format(inp['out_dir'],df.runID[i]) 
+        fmri['outputdir'] = '{}/{}'.format(inp['out_dir'],df.runID[i])
         fmri['tr'] = df.TR[i]
         fmri['npts'] = df.nvols[i] # if we need to check : # get_nvols(fmri['input']) # n volumes
         fmri['multiple'] =  1
@@ -45,18 +45,16 @@ def build_runs(df,inp):
         files['feat_files(1)'] += [f for f in listdir(files['feat_files(1)']) if '.nii' in f][0]
         files['unwarp_files(1)'] =  df.field_map_phase[i]
         files['unwarp_files_mag(1)'] = df.field_map_mag[i]
-
+        fmri['st_file'] = df.st_file[i]
         files['highres_files(1)'] = df.anatomical[i]
         fmri['dwell'] = df.dwell[i] # EPI dwell time (ms)
         fmri['te'] = df.TE[i]# EPI TE (ms)
-        fmri['st'] = 4
-        frmi['st_file'] = inp['st_file']
         r.append((fmri,files))
     return r
 
 # replace inputs in the template fsf
-def build_fsf(fmri,files,cmds):
-
+def build_fsf(fmri,files):
+    cmds = get_template()
     ignores = ['ncopeinputs','filtering_yn','temphp_yn','templp_yn','ndelete','prewhiten_yn',
               'scriptevsbeta','nftests_orig','nftests_real','alternateReference_yn',
               'tempfilt_yn1','alternative_mask','overwrite_yn']
