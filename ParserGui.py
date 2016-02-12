@@ -20,12 +20,19 @@ import psutil
 ## 1.1 - resized main window
 ##     - removed pickling for simplicity
 ##     -rounded voxel size
+##
 ## 1.1.1
 ## 2.25.2015
 ##      - added tabbed interface for possible expansion
 ## 2.0
 ## 2.25.2015
 ##      - added pipeline
+##
+## 1.1.2
+## not doing pipeline thing, code is still lurking though
+##      - added dialog button
+##      - refactoring
+
 
 class NoFileNameError(Exception):
     pass
@@ -65,6 +72,9 @@ def grab_directory(directory):
                     files.append(directory2 + '/' + ff)
         return files
 
+
+
+
 class EmittingStream(QtCore.QObject):
 
     textWritten = QtCore.pyqtSignal(str)
@@ -76,8 +86,7 @@ class ParsingTab(QtGui.QWidget):
     def __init__(self,):
         super(ParsingTab, self).__init__()
 
-        self.csvLabel = QtGui.QLabel("Full path to save the CSV file:",self)
-        self.csvLabel.move(300,755)
+  
         self.usedNames = []  # list for checking if a file has already been added
         self.rows = []  # stack of files to be added to database
         self.autoFiles = []  # Stack of parsed files
@@ -89,7 +98,7 @@ class ParsingTab(QtGui.QWidget):
                                   'design matrix', 'frame_file', 'run_data_file', 'nvols', 'tesla', 'location',
                                   'run_path', 'TR', 'matrix_x', 'matrix_y', 'n_slices', 'vox_x', 'vox_y', 'vox_z',
                                   'run_code_path', 'run_code_file', 'design_matrix_path', 'frameFilePath', 'picPath',
-                                  'siemensRef', 'padVol']
+                                  'siemensRef', 'padVol','f_map_mag','f_map_phase','topup','anatomical']
 
         # message printed upon opening
         self.open_message = datetime.now().strftime(
@@ -120,7 +129,7 @@ class ParsingTab(QtGui.QWidget):
                             'design matrix', 'frame_file', 'run_data_file', 'nvols', 'tesla', 'location',
                             'run_path', 'TR', 'run_code_path', 'run_code_file', 'design_matrix_path', 'picPath',
                             'frameFilePath',
-                            'siemensRef', 'padVol', 'matrix', 'voxels']
+                            'siemensRef', 'padVol','f_map_mag','f_map_phase','topup','anatomical', 'matrix', 'voxels']
         self.inputsToolTips = ['I.E. /user/nick/Naselaris_TN', 'date when data was collected', 'initials for subject',
                                'some kind of code for the experiment the run',
                                'a collection of runs done without pulling the subject',
@@ -137,7 +146,7 @@ class ParsingTab(QtGui.QWidget):
                                'was Siemens ref volume included as first volume in sequence? 0 or 1',
                                ' did scan fail before collecting the # of TRs specified in nvols? enter # missing vols '
                                'here.']
-        for i in range(len(self.InputLabels)):
+        for i in range(0,len(self.InputLabels)):
             if i < self.InputLabels.index('matrix'):
                 self.Inputs[self.InputLabels[i]] = QtGui.QLineEdit(self)
                 self.Inputs[self.InputLabels[i]].move(125, self.yIncrement + self.yIncrement * i)
@@ -148,6 +157,12 @@ class ParsingTab(QtGui.QWidget):
             self.Labels[self.InputLabels[i]].resize(118,25)
             self.Labels[self.InputLabels[i]].lower()
 
+        self.Inputs['main path'].resize(200,23)
+        self.diag_button = QtGui.QPushButton('browse', self)
+        self.diag_button.move(325,25)
+        self.diag_button.resize(55,23)
+        self.diag_button.clicked.connect(self.showDialog)
+
         for i in range(len(self.inputsToolTips)):
             self.Inputs[self.InputLabels[i]].setToolTip(self.inputsToolTips[i])
 
@@ -157,17 +172,18 @@ class ParsingTab(QtGui.QWidget):
                                'voxel dimensions in mm', 'voxel dimensions in mm', 'slice thickness']
         for i in range(3):
             self.Inputs[self.MatrixLabels[i]] = QtGui.QLineEdit(self)
-            self.Inputs[self.MatrixLabels[i]].move(125 + 90 * i, self.yIncrement + self.yIncrement * 21)
+            self.Inputs[self.MatrixLabels[i]].move(125 + 90 * i, self.yIncrement + self.yIncrement * 25)
             self.Inputs[self.MatrixLabels[i]].resize(70, 23)
             self.Inputs[self.MatrixLabels[i]].setToolTip(self.MatrixToolTips[i])
             self.Inputs[self.MatrixLabels[i + 3]] = QtGui.QLineEdit(self)
-            self.Inputs[self.MatrixLabels[i + 3]].move(125 + 90 * i, self.yIncrement + self.yIncrement * 22)
+            self.Inputs[self.MatrixLabels[i + 3]].move(125 + 90 * i, self.yIncrement + self.yIncrement * 26)
             self.Inputs[self.MatrixLabels[i + 3]].resize(70, 25)
             self.Inputs[self.MatrixLabels[i + 3]].setToolTip(self.MatrixToolTips[i + 3])
 
         # # LABELS AND INPUTS ARE BOTH IN DICTS BY THEIR LABEL NAME HERE
+        list_size_y = 675
         self.table = QtGui.QListWidget(self)
-        self.table.resize(270, 575)
+        self.table.resize(270, list_size_y)
         self.table.move(380, 25)
 
         self.tableLabel = QtGui.QLabel('<html><b>FILES CURRENTLY ADDED</b></html>', self)
@@ -175,44 +191,45 @@ class ParsingTab(QtGui.QWidget):
         self.table.currentItemChanged.connect(self.view_file)
 
         self.parse_table = QtGui.QListWidget(self)
-        self.parse_table.resize(340, 575)
+        self.parse_table.resize(340, list_size_y)
         self.parse_table.move(655, 25)
 
         self.parseLabel = QtGui.QLabel('<html><b>PARSED FILES READY TO ENTER</b></html>', self)
         self.parseLabel.move(750, 10)
         self.parse_table.currentItemChanged.connect(self.select_parse_file)
 
+        button_y = 700
         self.csvLabel = QtGui.QLabel("Full path to save the CSV file:",self)
-        self.csvLabel.move(300,755)
+        self.csvLabel.move(250,800)
 
         self.outputInput = QtGui.QLineEdit(self)
-        self.outputInput.move(485, 750)
+        self.outputInput.move(485, button_y+142)
         self.outputInput.resize(400, 25)
         self.outputInput.setToolTip('Enter path to export here')
 
         self.unAddButton = QtGui.QPushButton('un-add', self)
-        self.unAddButton.move(495, 600)
+        self.unAddButton.move(495, button_y)
         self.unAddButton.clicked.connect(self.un_add)
         self.unAddButton.setToolTip('select an item from the added list and press to un-add')
 
         self.nextPathButton = QtGui.QPushButton('next path',self)
-        self.nextPathButton.move(250,600)
+        self.nextPathButton.move(250,button_y)
         self.nextPathButton.clicked.connect(self.next_path)
         self.nextPathButton.setToolTip('clear currently unappended filed and allow a new directory to be parsed')
 
         self.dirButton = QtGui.QPushButton('get files', self)
         self.dirButton.clicked.connect(self.create_auto_list)
-        self.dirButton.move(20, 600)
+        self.dirButton.move(20, button_y)
         self.dirButton.setToolTip('Find all .nii files in current directory')
 
         self.addButton = QtGui.QPushButton('Add File', self)
         self.addButton.clicked.connect(self.file_append)
-        self.addButton.move(780, 600)
+        self.addButton.move(780, button_y)
         self.addButton.setToolTip('Add current file to stack')
 
         self.pandaButton = QtGui.QPushButton('export to CSV', self)
         self.pandaButton.clicked.connect(self.pickle_panda)
-        self.pandaButton.move(890, 750)
+        self.pandaButton.move(890, button_y + 142)
         self.pandaButton.resize(100, 25)
         self.pandaButton.setToolTip('Output to Pickled Pandas DataFrame and CSV file')
 
@@ -220,11 +237,17 @@ class ParsingTab(QtGui.QWidget):
 
         self.message = QtGui.QTextEdit(self)
         self.message.setReadOnly(True)
-        self.message.move(5, 625)
+        self.message.move(5, button_y + 25)
         self.message.resize(990, 120)
         self.message.append(self.open_message)
         self.message.moveCursor(QtGui.QTextCursor.End)
 
+    def showDialog(self):
+
+        text = QtGui.QFileDialog.getExistingDirectory(self,'choose path',self.Inputs['main path'].text())
+        
+        if text:
+            self.Inputs['main path'].setText(text)
 
     def next_path(self):
         try:
@@ -273,7 +296,6 @@ class ParsingTab(QtGui.QWidget):
         self.Inputs['sessionID'].setText('1')
         self.Inputs['design matrix'].setText('design_matrix.npy')
         self.Inputs['location'].setText('The Moon')
-        self.Inputs['TR'].setText('2')
         self.Inputs['run_code_file'].setText('run_experiment.py')
         self.Inputs['design_matrix_path'].setText('/musc.repo/')
         self.Inputs['frameFilePath'].setText('/musc.repo/')
@@ -853,9 +875,9 @@ class MainWindow(QtGui.QTabWidget):
 
 
         # # ############ MAKIN DA WINDOW ##################
-        self.setFixedSize(1001,800)
+        self.setFixedSize(1001,900)
         self.background_image = QtGui.QLabel(self)
-        self.background_image.resize(1000, 780)
+        self.background_image.resize(1000, 900)
         self.background_image.move(0,22)
         self.background_image.setStyleSheet("QLabel {background-image: url(nbg.png);}")
         self.background_image.lower()
